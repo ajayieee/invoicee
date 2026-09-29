@@ -190,6 +190,7 @@ export interface LineItem {
   subtotal_net: number;
   vat_rate_id: string;
   vat_rate_percentage: number;
+  vat_treatment?: VatTreatment;
   vat_amount: number;
   total_gross: number;
 }
@@ -228,6 +229,9 @@ export interface Invoice {
   originating_quote_id?: string;
   originating_quote_number?: string;
   invoice_number: string;
+  reference_number?: string;
+  po_number?: string;
+  payment_terms_days?: number;
   invoice_date: string;
   supply_date: string;
   due_date: string;

@@ -33,6 +33,7 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
   let balanceDue = 0;
   let notes = company.invoice_footer_notes || '';
   let terms = company.terms_and_conditions || '';
+  let referenceVal = '';
   let qrCodeData = '';
   let statementLedger: any[] = [];
 
@@ -42,6 +43,7 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
     title = 'TAX INVOICE / فاتورة ضريبية';
     numberLabel = 'Tax Invoice No';
     numberVal = inv.invoice_number;
+    referenceVal = inv.reference_number || inv.po_number || '';
     docDate = inv.invoice_date;
     supplyDate = inv.supply_date;
     dueDate = inv.due_date;
@@ -166,6 +168,12 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
                 <div>
                   <span className="text-slate-500">Date of Supply: </span>
                   <strong className="text-slate-900">{formatDate(supplyDate)}</strong>
+                </div>
+              )}
+              {referenceVal && (
+                <div>
+                  <span className="text-slate-500">PO / Ref No: </span>
+                  <strong className="font-mono text-slate-900">{referenceVal}</strong>
                 </div>
               )}
               {dueDate && (

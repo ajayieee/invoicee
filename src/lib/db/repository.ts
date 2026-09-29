@@ -527,12 +527,15 @@ class Repository {
     const grandTotal = Number(invoiceData.grand_total || 0);
 
     const newInvoice: Invoice = {
-      id: `inv-${Date.now()}`,
+      id: invoiceData.id || `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       organization_id: company.organization_id,
       customer_id: invoiceData.customer_id || '',
       originating_quote_id: invoiceData.originating_quote_id,
       originating_quote_number: invoiceData.originating_quote_number,
       invoice_number: invoiceNum,
+      reference_number: invoiceData.reference_number || invoiceData.po_number || '',
+      po_number: invoiceData.po_number || '',
+      payment_terms_days: invoiceData.payment_terms_days || customer?.payment_terms_days || 30,
       invoice_date: invoiceData.invoice_date || today,
       supply_date: invoiceData.supply_date || today,
       due_date: dueDate,
