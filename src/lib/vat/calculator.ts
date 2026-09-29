@@ -14,6 +14,7 @@ export interface CalculatedLineItem {
   gross_price: number;
   discount_amount: number;
   subtotal_net: number;
+  taxable_net?: number;
   vat_amount: number;
   total_gross: number;
 }
@@ -152,7 +153,8 @@ export class VatCalculator {
       bucket.vat = bucket.vat.plus(lineVat);
 
       const roundedVat = lineVat.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
-      const roundedGross = new Decimal(line.subtotal_net)
+      const roundedTaxableNet = lineTaxableNet.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+      const roundedGross = lineTaxableNet
         .plus(lineVat)
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
         .toNumber();
@@ -161,6 +163,7 @@ export class VatCalculator {
         gross_price: line.gross_price,
         discount_amount: line.discount_amount,
         subtotal_net: line.subtotal_net,
+        taxable_net: roundedTaxableNet,
         vat_amount: roundedVat,
         total_gross: roundedGross,
       };
@@ -190,5 +193,16 @@ export class VatCalculator {
       grand_total: Math.max(0, grandTotal),
       vat_breakdown: vatBreakdown,
     };
+  }
+
+  /**
+   * Converts foreign currency amounts to UAE Dirhams (AED) using UAE Central Bank exchange rate.
+   * Required under Article 59(1)(k) of the Executive Regulations.
+   */
+  public static convertToAED(amount: number, exchangeRate: number): number {
+    return new Decimal(amount || 0)
+      .times(exchangeRate || 1)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+      .toNumber();
   }
 }

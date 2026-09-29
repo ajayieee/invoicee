@@ -13,6 +13,9 @@ export interface DashboardMetricsData {
   totalCustomersCount: number;
   monthlyRevenue: { month: string; revenue: number; collected: number }[];
   salesByCustomer: { name: string; value: number }[];
+  monthlyCollections: { month: string; amount: number }[];
+  outstandingReceivablesBuckets: { name: string; amount: number; count: number }[];
+  revenueByService: { name: string; revenue: number; quantity: number }[];
 }
 
 class DashboardService {

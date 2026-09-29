@@ -9,6 +9,9 @@ import {
   Invoice,
   Payment,
   CreditNote,
+  CreditNoteType,
+  RefundStatus,
+  CreditReasonCode,
   AuditLog,
   InvoiceStatus,
   QuoteStatus,
@@ -106,7 +109,14 @@ class Repository {
   }
 
   // --- Audit Trail ---
-  public logAudit(entityType: string, entityId: string, action: string, oldValues?: any, newValues?: any) {
+  public logAudit(
+    entityType: string,
+    entityId: string,
+    action: string,
+    oldValues?: any,
+    newValues?: any,
+    performedByName: string = 'Current User'
+  ) {
     const entry: AuditLog = {
       id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       organization_id: this.store.companySettings.organization_id,
@@ -115,15 +125,22 @@ class Repository {
       action: action,
       old_values: oldValues,
       new_values: newValues,
-      performed_by_name: 'Current User',
+      performed_by_name: performedByName,
       created_at: new Date().toISOString(),
     };
     this.store.auditLogs.unshift(entry);
     this.persist();
   }
 
-  public getAuditLogs(): AuditLog[] {
-    return [...this.store.auditLogs];
+  public getAuditLogs(entityType?: string, entityId?: string): AuditLog[] {
+    let list = [...this.store.auditLogs];
+    if (entityType) {
+      list = list.filter((l) => l.entity_type === entityType);
+    }
+    if (entityId) {
+      list = list.filter((l) => l.entity_id === entityId);
+    }
+    return list;
   }
 
   // --- Sequential Number Allocation ---
@@ -758,11 +775,16 @@ class Repository {
     itemsToCredit: Array<{
       invoice_item_id: string;
       quantity_to_credit: number;
-      unit_price: number;
+      unit_price?: number;
+      amount_to_credit?: number;
       reason?: string;
+      description?: string;
     }>,
     reason: string,
-    allocationType: 'INVOICE_OFFSET' | 'CASH_REFUND' = 'INVOICE_OFFSET'
+    allocationType: 'INVOICE_OFFSET' | 'CASH_REFUND' | 'BANK_REFUND' | 'CREDIT_ON_ACCOUNT' = 'INVOICE_OFFSET',
+    creditType?: CreditNoteType,
+    creditReasonCode: CreditReasonCode = 'RE_OTHER',
+    performedByName: string = 'Current User'
   ): CreditNote {
     const inv = this.getInvoiceById(invoiceId);
     if (!inv) throw new Error('Invoice not found');
@@ -770,66 +792,216 @@ class Repository {
       throw new Error(`Cannot issue a credit note against invoice with status ${inv.status}.`);
     }
 
+    if (!itemsToCredit || itemsToCredit.length === 0) {
+      throw new Error('At least one invoice line item must be selected for crediting.');
+    }
+
+    // Check existing non-cancelled credit notes on this invoice
+    const existingNotes = this.store.creditNotes.filter(
+      (cn) => cn.invoice_id === invoiceId && cn.status !== 'CANCELLED'
+    );
+
     const company = this.getCompanySettings();
     const cnNumber = this.allocateSequenceNumber('CN', company.credit_note_prefix);
 
     let subtotalNet = 0;
     let vatTotal = 0;
+    let hasQuantityAdjustment = false;
+    let hasAmountAdjustment = false;
 
     const cnItems = itemsToCredit.map((it, idx) => {
       const originalLine = inv.items.find((orig) => orig.id === it.invoice_item_id);
-      const qty = Number(it.quantity_to_credit);
-      const price = Number(it.unit_price || originalLine?.unit_price || 0);
-      const lineNet = Number((qty * price).toFixed(2));
-      const vatRate = originalLine?.vat_rate_percentage || 5.0;
+      if (!originalLine) {
+        throw new Error(`Originating invoice line ${it.invoice_item_id} not found.`);
+      }
+
+      // Calculate previously credited quantity for this line item
+      let previouslyCreditedQty = 0;
+      let previouslyCreditedNet = 0;
+      existingNotes.forEach((cn) => {
+        cn.items.forEach((cni) => {
+          if (cni.invoice_item_id === it.invoice_item_id) {
+            previouslyCreditedQty += cni.quantity;
+            previouslyCreditedNet += cni.subtotal_net;
+          }
+        });
+      });
+
+      const maxAvailableQty = Number((originalLine.quantity - previouslyCreditedQty).toFixed(4));
+      const requestedQty = Number(it.quantity_to_credit);
+
+      if (requestedQty <= 0) {
+        throw new Error(`Credited quantity for "${originalLine.description}" must be greater than zero.`);
+      }
+
+      if (requestedQty > maxAvailableQty + 0.0001) {
+        throw new Error(
+          `Cannot credit ${requestedQty} of "${originalLine.description}". Maximum remaining non-credited quantity is ${maxAvailableQty}.`
+        );
+      }
+
+      // Check whether quantity or amount was adjusted
+      if (requestedQty < originalLine.quantity) {
+        hasQuantityAdjustment = true;
+      }
+
+      const originalPrice = originalLine.unit_price;
+      const price = it.unit_price !== undefined ? Number(it.unit_price) : originalPrice;
+      if (price !== originalPrice) {
+        hasAmountAdjustment = true;
+      }
+
+      // Line Net calculation
+      let lineNet: number;
+      if (it.amount_to_credit !== undefined && it.amount_to_credit > 0) {
+        hasAmountAdjustment = true;
+        lineNet = Number(it.amount_to_credit.toFixed(2));
+      } else {
+        lineNet = Number((requestedQty * price).toFixed(2));
+      }
+
+      // Prevent exceeding original line net value
+      const remainingLineNet = Number((originalLine.subtotal_net - previouslyCreditedNet).toFixed(2));
+      if (lineNet > remainingLineNet + 0.01) {
+        throw new Error(
+          `Credit amount (${lineNet} AED) for "${originalLine.description}" exceeds remaining line value (${remainingLineNet} AED).`
+        );
+      }
+
+      const vatRate = originalLine.vat_rate_percentage;
       const vatAmt = Number(((lineNet * vatRate) / 100).toFixed(2));
       const gross = Number((lineNet + vatAmt).toFixed(2));
 
       subtotalNet += lineNet;
       vatTotal += vatAmt;
 
+      let adjustmentType: 'FULL' | 'QUANTITY' | 'AMOUNT' | 'LINE' = 'FULL';
+      if (it.amount_to_credit !== undefined || price !== originalPrice) {
+        adjustmentType = 'AMOUNT';
+      } else if (requestedQty < originalLine.quantity) {
+        adjustmentType = 'QUANTITY';
+      } else if (itemsToCredit.length < inv.items.length) {
+        adjustmentType = 'LINE';
+      }
+
       return {
         id: `cni-${Date.now()}-${idx}`,
         credit_note_id: '',
         invoice_item_id: it.invoice_item_id,
-        product_id: originalLine?.product_id,
+        product_id: originalLine.product_id,
         item_order: idx + 1,
-        description: originalLine?.description ? `Credit: ${originalLine.description}` : 'Credit Adjustment',
-        quantity: qty,
+        description: it.description || (originalLine.description ? `Credit: ${originalLine.description}` : 'Credit Adjustment'),
+        original_invoiced_quantity: originalLine.quantity,
+        original_unit_price: originalLine.unit_price,
+        quantity: requestedQty,
         unit_price: price,
-        unit: originalLine?.unit || 'Unit',
+        unit: originalLine.unit || 'Unit',
         discount_amount: 0,
         subtotal_net: lineNet,
-        vat_rate_id: originalLine?.vat_rate_id || 'vat-001',
+        vat_rate_id: originalLine.vat_rate_id || 'vat-001',
         vat_rate_percentage: vatRate,
         vat_amount: vatAmt,
         total_gross: gross,
+        adjustment_type: adjustmentType,
       };
     });
 
     const grandTotal = Number((subtotalNet + vatTotal).toFixed(2));
+
+    // Guard: Total credit cannot exceed remaining non-credited value of the invoice
+    const alreadyCreditedTotal = existingNotes.reduce((s, cn) => s + cn.grand_total, 0);
+    const remainingInvoiceCapacity = Number((inv.grand_total - alreadyCreditedTotal).toFixed(2));
+    if (grandTotal > remainingInvoiceCapacity + 0.01) {
+      throw new Error(
+        `Total credit (${grandTotal} AED) exceeds the remaining invoice capacity of ${remainingInvoiceCapacity} AED.`
+      );
+    }
+
+    // Determine Credit Note Type
+    let computedCreditType: CreditNoteType = 'PARTIAL';
+    if (creditType) {
+      computedCreditType = creditType;
+    } else if (
+      itemsToCredit.length === inv.items.length &&
+      !hasQuantityAdjustment &&
+      !hasAmountAdjustment
+    ) {
+      computedCreditType = 'FULL';
+    } else if (hasAmountAdjustment) {
+      computedCreditType = 'AMOUNT_ADJUSTMENT';
+    } else if (hasQuantityAdjustment) {
+      computedCreditType = 'QUANTITY_ADJUSTMENT';
+    } else if (itemsToCredit.length < inv.items.length) {
+      computedCreditType = 'LINE_SELECTION';
+    }
+
+    // Determine Refund Status & Offsets
+    let refundStatus: RefundStatus = 'APPLIED_TO_INVOICE';
+    let remainingBalance = 0;
+    let offsetAmount = 0;
+
+    if (allocationType === 'INVOICE_OFFSET') {
+      refundStatus = 'APPLIED_TO_INVOICE';
+      offsetAmount = Math.min(inv.balance_due, grandTotal);
+      const newBal = Number(Math.max(0, inv.balance_due - offsetAmount).toFixed(2));
+      inv.balance_due = newBal;
+      if (newBal === 0 && inv.status !== 'PAID') {
+        inv.status = 'PAID';
+      }
+      inv.updated_at = new Date().toISOString();
+      remainingBalance = Number(Math.max(0, grandTotal - offsetAmount).toFixed(2));
+      if (remainingBalance > 0) {
+        refundStatus = 'CREDIT_ON_ACCOUNT';
+      }
+    } else if (allocationType === 'CASH_REFUND') {
+      refundStatus = 'REFUNDED_CASH';
+    } else if (allocationType === 'BANK_REFUND') {
+      refundStatus = 'REFUNDED_BANK';
+    } else if (allocationType === 'CREDIT_ON_ACCOUNT') {
+      refundStatus = 'CREDIT_ON_ACCOUNT';
+      remainingBalance = grandTotal;
+    }
+
+    // Prepare UAE E-Invoicing & ASP digital footprint
+    const eInvoiceUuid = `uae-cn-${Math.random().toString(36).substring(2, 10)}-${Date.now()}`;
+    const docHash = `sha256:${Buffer.from(`${cnNumber}:${inv.customer_id}:${grandTotal}`).toString('hex').slice(0, 32)}`;
+    const qrCode = `https://tax.gov.ae/verify?doc=${cnNumber}&trn=${company.trn || ''}&orig=${inv.invoice_number}&tot=${grandTotal.toFixed(2)}`;
 
     const creditNote: CreditNote = {
       id: `cn-${Date.now()}`,
       organization_id: company.organization_id,
       invoice_id: inv.id,
       invoice_number: inv.invoice_number,
+      invoice_date: inv.invoice_date,
+      original_invoice_total: inv.grand_total,
       customer_id: inv.customer_id,
       customer_name: inv.customer_snapshot.company_name || inv.customer_snapshot.contact_person,
       credit_note_number: cnNumber,
       credit_note_date: new Date().toISOString().split('T')[0],
       status: 'ISSUED',
+      credit_type: computedCreditType,
+      refund_status: refundStatus,
+      credit_reason_code: creditReasonCode,
       reason: reason,
       currency: 'AED',
       subtotal_net: subtotalNet,
       discount_amount: 0,
       vat_total: vatTotal,
       grand_total: grandTotal,
-      remaining_balance: 0,
+      remaining_balance: remainingBalance,
       customer_snapshot: inv.customer_snapshot,
       company_snapshot: inv.company_snapshot,
+      refund_processed_at:
+        allocationType === 'CASH_REFUND' || allocationType === 'BANK_REFUND'
+          ? new Date().toISOString()
+          : undefined,
       e_invoice_status: 'ACCEPTED',
-      e_invoice_uuid: `uae-cn-${Math.random().toString(36).substring(2, 9)}`,
+      e_invoice_uuid: eInvoiceUuid,
+      e_invoice_hash: docHash,
+      e_invoice_qr_code: qrCode,
+      asp_provider_name: 'Simulated UAE ASP (Accredited Service Provider)',
+      asp_submission_id: `ASP-CN-${Date.now()}`,
+      asp_cleared_at: new Date().toISOString(),
       items: cnItems,
       allocations: [
         {
@@ -840,6 +1012,10 @@ class Repository {
           amount: grandTotal,
           allocation_type: allocationType,
           allocated_at: new Date().toISOString(),
+          notes:
+            allocationType === 'INVOICE_OFFSET'
+              ? `Applied ${offsetAmount.toFixed(2)} AED against invoice balance due`
+              : `Processed via ${allocationType}`,
         },
       ],
       created_at: new Date().toISOString(),
@@ -849,18 +1025,143 @@ class Repository {
     creditNote.items.forEach((i) => (i.credit_note_id = creditNote.id));
     creditNote.allocations?.forEach((a) => (a.credit_note_id = creditNote.id));
 
-    // If offset against invoice balance
-    if (allocationType === 'INVOICE_OFFSET') {
-      const newBal = Number(Math.max(0, inv.balance_due - grandTotal).toFixed(2));
-      inv.balance_due = newBal;
-      if (newBal === 0) inv.status = 'PAID';
-      inv.updated_at = new Date().toISOString();
-    }
-
     this.store.creditNotes.unshift(creditNote);
-    this.logAudit('CREDIT_NOTE', creditNote.id, 'CREATED', undefined, creditNote);
+    this.logAudit('CREDIT_NOTE', creditNote.id, 'CREATED', undefined, creditNote, performedByName);
+    this.logAudit(
+      'INVOICE',
+      inv.id,
+      'CREDIT_NOTE_APPLIED',
+      { balance_due: inv.balance_due + offsetAmount },
+      { balance_due: inv.balance_due, credit_note_number: cnNumber, credit_amount: grandTotal },
+      performedByName
+    );
     this.persist();
     return creditNote;
+  }
+
+  public processCreditNoteRefund(
+    creditNoteId: string,
+    refundMethod: 'CASH' | 'BANK',
+    refundReference?: string,
+    notes?: string,
+    performedByName: string = 'Current User'
+  ): CreditNote {
+    const cn = this.getCreditNoteById(creditNoteId);
+    if (!cn) throw new Error('Credit Note not found');
+    if (cn.status === 'CANCELLED') {
+      throw new Error('Cannot process refund for a cancelled credit note.');
+    }
+    if (cn.refund_status === 'REFUNDED_CASH' || cn.refund_status === 'REFUNDED_BANK') {
+      throw new Error(`Refund has already been recorded for credit note ${cn.credit_note_number}.`);
+    }
+
+    const oldStatus = cn.refund_status;
+    cn.refund_status = refundMethod === 'CASH' ? 'REFUNDED_CASH' : 'REFUNDED_BANK';
+    cn.status = 'REFUNDED';
+    cn.refund_processed_at = new Date().toISOString();
+    cn.refund_reference = refundReference || `REF-${Date.now()}`;
+    cn.updated_at = new Date().toISOString();
+
+    if (!cn.allocations) cn.allocations = [];
+    cn.allocations.push({
+      id: `cna-${Date.now()}`,
+      organization_id: cn.organization_id,
+      credit_note_id: cn.id,
+      amount: cn.remaining_balance > 0 ? cn.remaining_balance : cn.grand_total,
+      allocation_type: refundMethod === 'CASH' ? 'CASH_REFUND' : 'BANK_REFUND',
+      allocated_at: new Date().toISOString(),
+      notes: notes || `Direct ${refundMethod} refund processed with ref ${cn.refund_reference}`,
+    });
+
+    cn.remaining_balance = 0;
+
+    this.logAudit(
+      'CREDIT_NOTE',
+      cn.id,
+      'REFUND_PROCESSED',
+      { refund_status: oldStatus },
+      { refund_status: cn.refund_status, refund_reference: cn.refund_reference },
+      performedByName
+    );
+    this.persist();
+    return cn;
+  }
+
+  public cancelCreditNote(
+    creditNoteId: string,
+    cancellationReason: string,
+    performedByName: string = 'Current User'
+  ): CreditNote {
+    const cn = this.getCreditNoteById(creditNoteId);
+    if (!cn) throw new Error('Credit Note not found');
+    if (cn.status === 'CANCELLED') {
+      throw new Error(`Credit Note ${cn.credit_note_number} is already cancelled.`);
+    }
+    if (!cancellationReason || !cancellationReason.trim()) {
+      throw new Error('A documented reason is mandatory when cancelling a credit note.');
+    }
+
+    // If offset was applied against invoice balance, reopen the invoice balance
+    const inv = this.getInvoiceById(cn.invoice_id);
+    if (inv && cn.allocations) {
+      const offsetAlloc = cn.allocations.find((a) => a.allocation_type === 'INVOICE_OFFSET');
+      if (offsetAlloc) {
+        inv.balance_due = Number((inv.balance_due + offsetAlloc.amount).toFixed(2));
+        if (inv.status === 'PAID' && inv.balance_due > 0) {
+          inv.status = 'PARTIALLY_PAID';
+        }
+        inv.updated_at = new Date().toISOString();
+      }
+    }
+
+    const oldValues = { status: cn.status, refund_status: cn.refund_status };
+    cn.status = 'CANCELLED';
+    cn.cancelled_at = new Date().toISOString();
+    cn.cancellation_reason = cancellationReason.trim();
+    cn.updated_at = new Date().toISOString();
+
+    this.logAudit('CREDIT_NOTE', cn.id, 'CANCELLED', oldValues, cn, performedByName);
+    this.persist();
+    return cn;
+  }
+
+  public deleteCreditNote(creditNoteId: string): void {
+    const cn = this.getCreditNoteById(creditNoteId);
+    if (!cn) throw new Error('Credit Note not found');
+    if (cn.status !== 'DRAFT') {
+      throw new Error(
+        `Accounting Principle Violation: Cannot delete non-draft credit note (${cn.credit_note_number}). Issued financial records must remain permanently recorded for unbroken sequence auditing. Cancel the credit note instead.`
+      );
+    }
+
+    this.store.creditNotes = this.store.creditNotes.filter((c) => c.id !== creditNoteId);
+    this.persist();
+  }
+
+  public async submitCreditNoteToAsp(creditNoteId: string): Promise<CreditNote> {
+    const cn = this.getCreditNoteById(creditNoteId);
+    if (!cn) throw new Error('Credit Note not found');
+
+    const uuid = `uae-cn-${Math.random().toString(36).substring(2, 10)}-${Date.now()}`;
+    const hash = `sha256:${Buffer.from(`CN:${cn.credit_note_number}:${cn.grand_total}:${Date.now()}`).toString('hex').slice(0, 32)}`;
+    const qr = `https://tax.gov.ae/verify?doc=${cn.credit_note_number}&trn=${cn.company_snapshot.trn || ''}&tot=${cn.grand_total}`;
+
+    cn.e_invoice_status = 'ACCEPTED';
+    cn.e_invoice_uuid = uuid;
+    cn.e_invoice_hash = hash;
+    cn.e_invoice_qr_code = qr;
+    cn.asp_provider_name = 'Simulated UAE ASP (Accredited Service Provider)';
+    cn.asp_submission_id = `ASP-CN-${Date.now()}`;
+    cn.asp_cleared_at = new Date().toISOString();
+    cn.updated_at = new Date().toISOString();
+
+    this.logAudit('CREDIT_NOTE', cn.id, 'ASP_E_INVOICE_SUBMITTED', undefined, {
+      e_invoice_uuid: uuid,
+      e_invoice_hash: hash,
+      e_invoice_status: 'ACCEPTED',
+    });
+    this.persist();
+    return cn;
   }
 
   // --- Executive Dashboard Metrics ---
@@ -868,21 +1169,33 @@ class Repository {
     const invoices = this.store.invoices.filter((i) => i.status !== 'CANCELLED' && i.status !== 'DRAFT');
     const payments = this.store.payments.filter((p) => p.status === 'RECORDED');
     const quotes = this.store.quotes.filter((q) => q.status !== 'REJECTED' && q.status !== 'EXPIRED');
+    const activeCreditNotes = this.store.creditNotes.filter((cn) => cn.status !== 'CANCELLED');
 
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const revenueThisYear = invoices
+    const grossRevenueThisYear = invoices
       .filter((i) => new Date(i.invoice_date).getFullYear() === currentYear)
       .reduce((sum, i) => sum + i.grand_total, 0);
+    const creditThisYear = activeCreditNotes
+      .filter((cn) => new Date(cn.credit_note_date).getFullYear() === currentYear)
+      .reduce((sum, cn) => sum + cn.grand_total, 0);
+    const revenueThisYear = Number(Math.max(0, grossRevenueThisYear - creditThisYear).toFixed(2));
 
-    const revenueThisMonth = invoices
+    const grossRevenueThisMonth = invoices
       .filter((i) => {
         const d = new Date(i.invoice_date);
         return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
       })
       .reduce((sum, i) => sum + i.grand_total, 0);
+    const creditThisMonth = activeCreditNotes
+      .filter((cn) => {
+        const d = new Date(cn.credit_note_date);
+        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+      })
+      .reduce((sum, cn) => sum + cn.grand_total, 0);
+    const revenueThisMonth = Number(Math.max(0, grossRevenueThisMonth - creditThisMonth).toFixed(2));
 
     const paymentsReceivedThisMonth = payments
       .filter((p) => {
@@ -891,8 +1204,15 @@ class Repository {
       })
       .reduce((sum, p) => sum + p.amount, 0);
 
-    const totalVatCollected = invoices.reduce((sum, i) => sum + i.vat_total, 0);
-    const outstandingReceivables = invoices.reduce((sum, i) => sum + i.balance_due, 0);
+    const grossVatCollected = invoices.reduce((sum, i) => sum + i.vat_total, 0);
+    const vatCredited = activeCreditNotes.reduce((sum, cn) => sum + cn.vat_total, 0);
+    const totalVatCollected = Number(Math.max(0, grossVatCollected - vatCredited).toFixed(2));
+
+    const grossReceivables = invoices.reduce((sum, i) => sum + i.balance_due, 0);
+    const unallocatedCredit = activeCreditNotes
+      .filter((cn) => cn.refund_status === 'CREDIT_ON_ACCOUNT' && cn.remaining_balance > 0)
+      .reduce((sum, cn) => sum + cn.remaining_balance, 0);
+    const outstandingReceivables = Number(Math.max(0, grossReceivables - unallocatedCredit).toFixed(2));
 
     const overdueReceivables = invoices
       .filter((i) => i.status === 'OVERDUE' || (i.balance_due > 0 && new Date(i.due_date) < now))
@@ -911,6 +1231,13 @@ class Repository {
         })
         .reduce((sum, i) => sum + i.grand_total, 0);
 
+      const cnRev = activeCreditNotes
+        .filter((cn) => {
+          const d = new Date(cn.credit_note_date);
+          return d.getFullYear() === currentYear && d.getMonth() === idx;
+        })
+        .reduce((sum, cn) => sum + cn.grand_total, 0);
+
       const payReceived = payments
         .filter((p) => {
           const d = new Date(p.payment_date);
@@ -920,7 +1247,7 @@ class Repository {
 
       return {
         month: monthName,
-        revenue: invRev,
+        revenue: Number(Math.max(0, invRev - cnRev).toFixed(2)),
         collected: payReceived,
       };
     });
@@ -931,7 +1258,71 @@ class Repository {
       const name = inv.customer_snapshot.company_name || inv.customer_snapshot.contact_person || 'Client';
       customerMap[name] = (customerMap[name] || 0) + inv.grand_total;
     });
-    const salesByCustomer = Object.entries(customerMap).map(([name, value]) => ({ name, value }));
+    activeCreditNotes.forEach((cn) => {
+      const name = cn.customer_name || 'Client';
+      if (customerMap[name] !== undefined) {
+        customerMap[name] = Number(Math.max(0, customerMap[name] - cn.grand_total).toFixed(2));
+      }
+    });
+    const salesByCustomer = Object.entries(customerMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+
+    // Outstanding receivables aging distribution
+    const agingBuckets = [
+      { name: '0-30 Days', amount: 0, count: 0 },
+      { name: '31-60 Days', amount: 0, count: 0 },
+      { name: '61-90 Days', amount: 0, count: 0 },
+      { name: '90+ Days', amount: 0, count: 0 },
+    ];
+    invoices
+      .filter((i) => i.balance_due > 0)
+      .forEach((i) => {
+        const diffDays = Math.max(0, Math.ceil((now.getTime() - new Date(i.due_date).getTime()) / (1000 * 3600 * 24)));
+        if (diffDays <= 30) {
+          agingBuckets[0].amount += i.balance_due;
+          agingBuckets[0].count += 1;
+        } else if (diffDays <= 60) {
+          agingBuckets[1].amount += i.balance_due;
+          agingBuckets[1].count += 1;
+        } else if (diffDays <= 90) {
+          agingBuckets[2].amount += i.balance_due;
+          agingBuckets[2].count += 1;
+        } else {
+          agingBuckets[3].amount += i.balance_due;
+          agingBuckets[3].count += 1;
+        }
+      });
+    agingBuckets.forEach((b) => {
+      b.amount = Number(b.amount.toFixed(2));
+    });
+
+    // Revenue by Product / Service
+    const serviceMap: Record<string, { revenue: number; quantity: number }> = {};
+    invoices.forEach((inv) => {
+      inv.items.forEach((item) => {
+        const name = item.description || 'Service Item';
+        if (!serviceMap[name]) {
+          serviceMap[name] = { revenue: 0, quantity: 0 };
+        }
+        serviceMap[name].revenue += item.subtotal_net;
+        serviceMap[name].quantity += item.quantity;
+      });
+    });
+    const revenueByService = Object.entries(serviceMap)
+      .map(([name, data]) => ({
+        name,
+        revenue: Number(data.revenue.toFixed(2)),
+        quantity: data.quantity,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 6);
+
+    const monthlyCollections = monthlyRevenue.map((m) => ({
+      month: m.month,
+      amount: m.collected,
+    }));
 
     return {
       revenueThisMonth,
@@ -946,6 +1337,9 @@ class Repository {
       totalCustomersCount: this.store.customers.filter((c) => c.is_active).length,
       monthlyRevenue,
       salesByCustomer,
+      monthlyCollections,
+      outstandingReceivablesBuckets: agingBuckets,
+      revenueByService,
     };
   }
 
@@ -1102,13 +1496,28 @@ class Repository {
             });
           });
 
+        // Credit Note Adjustments for UAE VAT 201 Box 1
+        let creditNotesStandardAdjustment = 0;
+        let creditNotesVatAdjustment = 0;
+        const activeCreditNotes = creditNotes.filter((cn) => cn.status !== 'CANCELLED');
+        activeCreditNotes.forEach((cn) => {
+          creditNotesStandardAdjustment += cn.subtotal_net;
+          creditNotesVatAdjustment += cn.vat_total;
+        });
+
+        const netStandardRatedSales = Math.max(0, standardRatedSales - creditNotesStandardAdjustment);
+        const netVatPayable = Math.max(0, standardVatCollected - creditNotesVatAdjustment);
+
         return {
           standardRatedSales: Number(standardRatedSales.toFixed(2)),
+          creditNotesStandardAdjustment: Number(creditNotesStandardAdjustment.toFixed(2)),
+          netStandardRatedSales: Number(netStandardRatedSales.toFixed(2)),
           standardVatCollected: Number(standardVatCollected.toFixed(2)),
+          creditNotesVatAdjustment: Number(creditNotesVatAdjustment.toFixed(2)),
           zeroRatedSales: Number(zeroRatedSales.toFixed(2)),
           exemptSales: Number(exemptSales.toFixed(2)),
-          totalSupplies: Number((standardRatedSales + zeroRatedSales + exemptSales).toFixed(2)),
-          netVatPayable: Number(standardVatCollected.toFixed(2)),
+          totalSupplies: Number((netStandardRatedSales + zeroRatedSales + exemptSales).toFixed(2)),
+          netVatPayable: Number(netVatPayable.toFixed(2)),
         };
       }
 
@@ -1117,28 +1526,44 @@ class Repository {
           number: cn.credit_note_number,
           date: cn.credit_note_date,
           invoice_number: cn.invoice_number,
+          invoice_date: cn.invoice_date,
           customer: cn.customer_name,
           reason: cn.reason,
+          credit_type: cn.credit_type,
+          original_amount: cn.original_invoice_total || 0,
           subtotal: cn.subtotal_net,
           vat: cn.vat_total,
           total: cn.grand_total,
+          refund_status: cn.refund_status,
           status: cn.status,
+          e_invoice_status: cn.e_invoice_status,
         }));
 
       case 'REVENUE_BY_CUSTOMER': {
-        const revMap: Record<string, { total: number; invoiceCount: number; paid: number; outstanding: number }> = {};
+        const revMap: Record<string, { total: number; invoiceCount: number; paid: number; credited: number; outstanding: number }> = {};
         invoices
           .filter((i) => i.status !== 'CANCELLED')
           .forEach((i) => {
             const name = i.customer_snapshot.company_name || i.customer_snapshot.contact_person || 'Client';
             if (!revMap[name]) {
-              revMap[name] = { total: 0, invoiceCount: 0, paid: 0, outstanding: 0 };
+              revMap[name] = { total: 0, invoiceCount: 0, paid: 0, credited: 0, outstanding: 0 };
             }
             revMap[name].total += i.grand_total;
             revMap[name].invoiceCount += 1;
             revMap[name].paid += i.amount_paid;
             revMap[name].outstanding += i.balance_due;
           });
+
+        creditNotes
+          .filter((cn) => cn.status !== 'CANCELLED')
+          .forEach((cn) => {
+            const name = cn.customer_name || 'Client';
+            if (revMap[name]) {
+              revMap[name].total = Number(Math.max(0, revMap[name].total - cn.grand_total).toFixed(2));
+              revMap[name].credited += cn.grand_total;
+            }
+          });
+
         return Object.entries(revMap).map(([customer, data]) => ({
           customer,
           ...data,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   TrendingUp,
   DollarSign,
@@ -13,6 +13,12 @@ import {
   ShieldCheck,
   ChevronRight,
   RefreshCw,
+  Calendar,
+  Wallet,
+  PieChart as PieChartIcon,
+  BarChart3,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -23,7 +29,19 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { dashboardService } from '@/services/dashboard.service';
 import { companyService } from '@/services/company.service';
 import { useAuth } from '@/context/AuthContext';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+  Legend,
+} from 'recharts';
 
 interface DashboardViewProps {
   onNavigate: (tab: any) => void;
@@ -37,6 +55,7 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
   const [recentInvoices, setRecentInvoices] = useState(dashboardService.getRecentInvoices(5));
   const [recentQuotes, setRecentQuotes] = useState(dashboardService.getRecentQuotes(5));
   const [company, setCompany] = useState(companyService.getSettings());
+  const [activeMainChart, setActiveMainChart] = useState<'COMBINED' | 'REVENUE' | 'COLLECTIONS'>('COMBINED');
 
   const handleRefresh = () => {
     setLoading(true);
@@ -46,8 +65,10 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
       setRecentQuotes(dashboardService.getRecentQuotes(5));
       setCompany(companyService.getSettings());
       setLoading(false);
-    }, 300);
+    }, 250);
   };
+
+  const agingColors = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
 
   return (
     <div className="space-y-6">
@@ -63,8 +84,8 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
               {company.trading_name || company.legal_company_name}
             </h1>
             <p className="text-sm text-slate-300 max-w-xl">
-              Welcome back, <strong className="text-white">{user.name}</strong> ({user.role}). Monitor UAE sales,
-              quotations, VAT compliance, and receivables.
+              Welcome back, <strong className="text-white">{user.name}</strong> ({user.role}). Financial overview,
+              quotations pipeline, receivables aging, and VAT compliance.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -102,10 +123,10 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* 8 KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Revenue This Month */}
-        <Card>
+        {/* 1. Revenue this month */}
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Revenue This Month
@@ -119,16 +140,36 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
               {formatCurrency(metrics.revenueThisMonth)}
             </div>
             <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <span className="text-emerald-600 font-semibold">Current Month</span> billed in {company.default_currency}
+              <span className="text-emerald-600 font-semibold">Current Month</span> net invoiced
             </p>
           </CardContent>
         </Card>
 
-        {/* Outstanding Receivables */}
-        <Card>
+        {/* 2. Revenue this year */}
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Outstanding Receivables
+              Revenue This Year
+            </CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCurrency(metrics.revenueThisYear)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+              <span className="text-teal-600 font-semibold">{new Date().getFullYear()} Annual Total</span> net sales
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 3. Outstanding */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Outstanding
             </CardTitle>
             <div className="h-8 w-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
               <DollarSign className="h-4 w-4" />
@@ -144,11 +185,11 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
           </CardContent>
         </Card>
 
-        {/* Overdue Receivables */}
-        <Card className={metrics.overdueReceivables > 0 ? 'border-rose-200 bg-rose-50/20' : ''}>
+        {/* 4. Overdue */}
+        <Card className={`hover:shadow-md transition-shadow ${metrics.overdueReceivables > 0 ? 'border-rose-200 bg-rose-50/20' : ''}`}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Overdue Receivables
+              Overdue
             </CardTitle>
             <div className="h-8 w-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
               <AlertCircle className="h-4 w-4" />
@@ -159,91 +200,254 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
               {formatCurrency(metrics.overdueReceivables)}
             </div>
             <p className="text-xs text-rose-600/80 mt-1 font-medium">
-              Immediate collection follow-up needed
+              Past payment terms • Immediate follow-up
             </p>
           </CardContent>
         </Card>
 
-        {/* VAT Collected */}
-        <Card>
+        {/* 5. Paid this month */}
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              VAT Collected (5%)
+              Paid This Month
             </CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Wallet className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCurrency(metrics.paymentsReceivedThisMonth)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Cash collections received this month
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 6. VAT collected */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              VAT Collected
+            </CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <ShieldCheck className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-teal-800">
+            <div className="text-2xl font-bold text-indigo-950">
               {formatCurrency(metrics.totalVatCollected)}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Cumulative output VAT on issued invoices
+              Cumulative Net Output Tax (5% FTA)
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 7. Open quotations */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Open Quotations
+            </CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <FileCheck className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-700">
+              {metrics.openQuotationCount} <span className="text-sm font-medium text-slate-500">Proposals</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Active draft & sent quotation estimates
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 8. Quotation pipeline */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Quotation Pipeline
+            </CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <ArrowUpRight className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCurrency(metrics.openQuotationValue)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Total potential revenue in conversion funnel
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Secondary Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-xs font-medium text-slate-500">Payments Received This Month</div>
-          <div className="text-lg font-bold text-slate-900 mt-1">
-            {formatCurrency(metrics.paymentsReceivedThisMonth)}
-          </div>
-        </div>
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-xs font-medium text-slate-500">Annual Revenue ({new Date().getFullYear()})</div>
-          <div className="text-lg font-bold text-slate-900 mt-1">
-            {formatCurrency(metrics.revenueThisYear)}
-          </div>
-        </div>
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-xs font-medium text-slate-500">Open Quotations Value</div>
-          <div className="text-lg font-bold text-slate-900 mt-1">
-            {formatCurrency(metrics.openQuotationValue)}
-            <span className="text-xs font-normal text-slate-500 ml-1.5">
-              ({metrics.openQuotationCount} quotes)
-            </span>
-          </div>
-        </div>
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-xs font-medium text-slate-500">Active UAE Clients</div>
-          <div className="text-lg font-bold text-slate-900 mt-1 flex items-center gap-1.5">
-            <Users className="h-4 w-4 text-emerald-600" />
-            <span>{metrics.totalCustomersCount} Accounts</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly Performance Chart */}
+      {/* Primary Charts Row: Monthly Revenue & Collections + Receivables Aging */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chart 1 & 2: Monthly Revenue & Monthly Collections */}
         <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Monthly Performance (Revenue & Collections)
+                </CardTitle>
+                <CardDescription>
+                  Invoiced net revenue vs. actual cash collected per month in AED
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setActiveMainChart('COMBINED')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    activeMainChart === 'COMBINED' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Both
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMainChart('REVENUE')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    activeMainChart === 'REVENUE' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Revenue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMainChart('COLLECTIONS')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    activeMainChart === 'COLLECTIONS' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Collections
+                </button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                {activeMainChart === 'COMBINED' ? (
+                  <BarChart data={metrics.monthlyRevenue} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip
+                      formatter={(value: any) => [formatCurrency(Number(value)), '']}
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#1e293b',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Bar dataKey="revenue" fill="#0f766e" radius={[4, 4, 0, 0]} name="Invoiced Revenue" />
+                    <Bar dataKey="collected" fill="#0284c7" radius={[4, 4, 0, 0]} name="Cash Collections" />
+                  </BarChart>
+                ) : activeMainChart === 'REVENUE' ? (
+                  <AreaChart data={metrics.monthlyRevenue} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0f766e" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#0f766e" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip
+                      formatter={(value: any) => [formatCurrency(Number(value)), '']}
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#1e293b',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#0f766e"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorRevenue)"
+                      name="Invoiced Revenue"
+                    />
+                  </AreaChart>
+                ) : (
+                  <AreaChart data={metrics.monthlyRevenue} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0284c7" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#0284c7" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip
+                      formatter={(value: any) => [formatCurrency(Number(value)), '']}
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#1e293b',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="collected"
+                      stroke="#0284c7"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorCollected)"
+                      name="Cash Collected"
+                    />
+                  </AreaChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chart 3: Outstanding Receivables Aging */}
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base font-semibold text-slate-900">
-                  {new Date().getFullYear()} Revenue & Payment Collections (AED)
+                  Outstanding Receivables
                 </CardTitle>
-                <CardDescription>
-                  Comparison between total invoiced amounts and realized cash collections
-                </CardDescription>
+                <CardDescription>Aging bracket distribution</CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={() => onNavigate('reports')}>
-                View Full Reports <ArrowUpRight className="h-3.5 w-3.5" />
+                <ArrowUpRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-72 w-full pt-4">
+            <div className="h-72 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.monthlyRevenue} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart
+                  data={metrics.outstandingReceivablesBuckets || []}
+                  margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
                   <Tooltip
-                    formatter={(value: any) => [formatCurrency(Number(value)), '']}
+                    formatter={(value: any) => [formatCurrency(Number(value)), 'Outstanding']}
                     contentStyle={{
                       backgroundColor: '#0f172a',
                       borderColor: '#1e293b',
@@ -252,108 +456,213 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
                       fontSize: '12px',
                     }}
                   />
-                  <Bar dataKey="revenue" fill="#0f766e" radius={[4, 4, 0, 0]} name="Invoiced Revenue" />
-                  <Bar dataKey="collected" fill="#0ea5e9" radius={[4, 4, 0, 0]} name="Cash Collected" />
+                  <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                    {(metrics.outstandingReceivablesBuckets || []).map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={agingColors[index % agingColors.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Quick Operations & Receivables Overview */}
-        <Card className="flex flex-col justify-between">
+      {/* Secondary Charts Row: Revenue by Customer & Revenue by Service */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Chart 4: Revenue by Customer */}
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">
-              Quick Operations
-            </CardTitle>
-            <CardDescription>Role-governed transaction shortcuts</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Revenue by Customer
+                </CardTitle>
+                <CardDescription>Top UAE clients by invoiced volume</CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => onNavigate('reports')}>
+                All Clients <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-2.5">
-            {permissions.canCreateInvoice && (
-              <button
-                onClick={() => onQuickAction('NEW_INVOICE')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30 flex items-center justify-between text-left transition-all group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                    <Receipt className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900 group-hover:text-emerald-700">
-                      Issue Tax Invoice
-                    </div>
-                    <div className="text-[11px] text-slate-500">Sequential UAE FTA formatted invoice</div>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-600" />
-              </button>
-            )}
-
-            {permissions.canRecordPayment && (
-              <button
-                onClick={() => onQuickAction('RECORD_PAYMENT')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-amber-500 hover:bg-amber-50/30 flex items-center justify-between text-left transition-all group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                    <DollarSign className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900 group-hover:text-amber-700">
-                      Record Payment
-                    </div>
-                    <div className="text-[11px] text-slate-500">Apply cash, cheque, or bank wire</div>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-amber-600" />
-              </button>
-            )}
-
-            {permissions.canApproveQuote && (
-              <button
-                onClick={() => onQuickAction('NEW_QUOTE')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-500 hover:bg-sky-50/30 flex items-center justify-between text-left transition-all group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
-                    <FileCheck className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900 group-hover:text-sky-700">
-                      Prepare Quotation
-                    </div>
-                    <div className="text-[11px] text-slate-500">Send estimate with 1-click invoice conversion</div>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-sky-600" />
-              </button>
-            )}
-
-            {permissions.canManageCustomers && (
-              <button
-                onClick={() => onQuickAction('NEW_CUSTOMER')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-purple-500 hover:bg-purple-50/30 flex items-center justify-between text-left transition-all group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                    <Users className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900 group-hover:text-purple-700">
-                      Register Client / Prospect
-                    </div>
-                    <div className="text-[11px] text-slate-500">Configure Emirate and 15-digit TRN</div>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-purple-600" />
-              </button>
+          <CardContent>
+            {metrics.salesByCustomer && metrics.salesByCustomer.length > 0 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    layout="vertical"
+                    data={metrics.salesByCustomer.slice(0, 5)}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      stroke="#475569"
+                      fontSize={11}
+                      tickLine={false}
+                      width={120}
+                      tickFormatter={(val) => (val.length > 16 ? `${val.substring(0, 16)}...` : val)}
+                    />
+                    <Tooltip
+                      formatter={(value: any) => [formatCurrency(Number(value)), 'Revenue']}
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#1e293b',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} name="Billed Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-xs text-slate-400">
+                No customer billing records available yet.
+              </div>
             )}
           </CardContent>
-          <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-xl flex items-center justify-between text-xs text-slate-500">
-            <span>Currency: <strong>{company.default_currency}</strong></span>
-            <span>VAT Rate: <strong>{company.default_vat_rate}%</strong></span>
-          </div>
         </Card>
+
+        {/* Chart 5: Revenue by Service */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Revenue by Service
+                </CardTitle>
+                <CardDescription>Product and service breakdown</CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => onNavigate('reports')}>
+                View Items <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {metrics.revenueByService && metrics.revenueByService.length > 0 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={metrics.revenueByService.slice(0, 5)}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#94a3b8"
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(val) => (val.length > 12 ? `${val.substring(0, 12)}...` : val)}
+                    />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip
+                      formatter={(value: any) => [formatCurrency(Number(value)), 'Revenue']}
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#1e293b',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="revenue" fill="#0d9488" radius={[4, 4, 0, 0]} name="Service Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-xs text-slate-400">
+                No service or product billing records available yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Operations Shortcuts */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {permissions.canCreateInvoice && (
+          <button
+            onClick={() => onQuickAction('NEW_INVOICE')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50/20 text-left transition-all group flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <Receipt className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-900 group-hover:text-emerald-700">
+                  Issue Tax Invoice
+                </div>
+                <div className="text-[11px] text-slate-500">Sequential UAE FTA invoice</div>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-600" />
+          </button>
+        )}
+
+        {permissions.canRecordPayment && (
+          <button
+            onClick={() => onQuickAction('RECORD_PAYMENT')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-amber-500 hover:bg-amber-50/20 text-left transition-all group flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-900 group-hover:text-amber-700">
+                  Record Payment
+                </div>
+                <div className="text-[11px] text-slate-500">Bank wire, cash, or card</div>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-amber-600" />
+          </button>
+        )}
+
+        {permissions.canApproveQuote && (
+          <button
+            onClick={() => onQuickAction('NEW_QUOTE')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-sky-500 hover:bg-sky-50/20 text-left transition-all group flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
+                <FileCheck className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-900 group-hover:text-sky-700">
+                  Prepare Quotation
+                </div>
+                <div className="text-[11px] text-slate-500">Send estimate to client</div>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-sky-600" />
+          </button>
+        )}
+
+        {permissions.canManageCustomers && (
+          <button
+            onClick={() => onQuickAction('NEW_CUSTOMER')}
+            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-purple-500 hover:bg-purple-50/20 text-left transition-all group flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                <Users className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-900 group-hover:text-purple-700">
+                  Register Client
+                </div>
+                <div className="text-[11px] text-slate-500">Emirate & 15-digit TRN</div>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-purple-600" />
+          </button>
+        )}
       </div>
 
       {/* Recent Invoices & Recent Quotations Tables */}
@@ -403,7 +712,7 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
                           {inv.invoice_number}
                         </td>
                         <td className="px-4 py-2.5 text-slate-700 truncate max-w-[140px]">
-                          {inv.customer_snapshot.company_name || inv.customer_snapshot.contact_person}
+                          {inv.customer_snapshot?.company_name || inv.customer_snapshot?.contact_person}
                         </td>
                         <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">
                           {formatDate(inv.invoice_date)}

@@ -13,6 +13,7 @@ import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
 import { VatCalculator, LineItemInput, CalculationResult } from '@/lib/vat/calculator';
 import { ValidationRules } from '@/lib/validation/rules';
+import { creditNoteService } from './credit-note.service';
 
 export interface InvoiceQuery {
   search?: string;
@@ -121,6 +122,15 @@ class InvoiceService {
     }
     if (!data.supply_date) {
       errors.supply_date = 'Date of supply is mandatory for UAE FTA VAT compliance.';
+    }
+    if (data.invoice_date && data.supply_date) {
+      const invTime = new Date(data.invoice_date).getTime();
+      const supplyTime = new Date(data.supply_date).getTime();
+      const diffDays = Math.floor((invTime - supplyTime) / (1000 * 3600 * 24));
+      if (diffDays > 14) {
+        errors.invoice_date =
+          'Under UAE VAT Law (Article 67), a Tax Invoice must be issued within 14 calendar days of the date of supply.';
+      }
     }
     if (!data.due_date) {
       errors.due_date = 'Payment due date is required.';
@@ -540,6 +550,10 @@ class InvoiceService {
       return { success: false, error: 'Invoice not found.' };
     }
 
+    if (existing.status === 'CANCELLED') {
+      return { success: false, error: 'Invoice is already cancelled.' };
+    }
+
     if (existing.amount_paid > 0) {
       return {
         success: false,
@@ -604,30 +618,7 @@ class InvoiceService {
    * Issues a Credit Note against an issued invoice.
    */
   public createCreditNote(input: CreateCreditNoteInput): ServiceResponse<CreditNote> {
-    if (!input.reason || !input.reason.trim()) {
-      return { success: false, error: 'A reason for issuing the credit note is required.' };
-    }
-    if (!input.items || input.items.length === 0) {
-      return { success: false, error: 'At least one line item must be selected for crediting.' };
-    }
-
-    try {
-      const creditNote = db.createCreditNoteFromInvoice(
-        input.invoice_id,
-        input.items.map((it) => ({
-          invoice_item_id: it.invoice_item_id,
-          quantity_to_credit: Number(it.quantity_to_credit),
-          unit_price: it.unit_price ? Number(it.unit_price) : 0,
-          reason: it.reason,
-        })),
-        input.reason.trim(),
-        input.allocation_type || 'INVOICE_OFFSET'
-      );
-
-      return { success: true, data: creditNote };
-    } catch (e: any) {
-      return { success: false, error: e.message || 'Failed to issue credit note.' };
-    }
+    return creditNoteService.createCreditNote(input);
   }
 }
 

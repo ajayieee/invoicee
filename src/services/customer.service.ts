@@ -1,4 +1,4 @@
-import { Customer, CustomerRelation, CustomerType, UAEEmirate, Invoice, Quote, Payment } from '@/types/database';
+import { Customer, CustomerRelation, CustomerType, UAEEmirate, Invoice, Quote, Payment, CreditNote } from '@/types/database';
 import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
 import { ValidationRules } from '@/lib/validation/rules';
@@ -36,8 +36,10 @@ export interface Customer360Summary {
   invoices: Invoice[];
   quotes: Quote[];
   payments: Payment[];
+  creditNotes: CreditNote[];
   totalInvoiced: number;
   totalPaid: number;
+  totalCredited: number;
   totalBalanceDue: number;
   overdueCount: number;
 }
@@ -180,6 +182,7 @@ class CustomerService {
     const invoices = db.getInvoices().filter((i) => i.customer_id === id);
     const quotes = db.getQuotes().filter((q) => q.customer_id === id);
     const payments = db.getPayments().filter((p) => p.customer_id === id);
+    const creditNotes = db.getCreditNotes().filter((cn) => cn.customer_id === id && cn.status !== 'CANCELLED');
 
     let totalInvoiced = 0;
     let totalPaid = 0;
@@ -197,13 +200,17 @@ class CustomerService {
       }
     }
 
+    const totalCredited = creditNotes.reduce((sum, cn) => sum + cn.grand_total, 0);
+
     return {
       customer,
       invoices,
       quotes,
       payments,
+      creditNotes,
       totalInvoiced: Math.round(totalInvoiced * 100) / 100,
       totalPaid: Math.round(totalPaid * 100) / 100,
+      totalCredited: Math.round(totalCredited * 100) / 100,
       totalBalanceDue: Math.round(totalBalanceDue * 100) / 100,
       overdueCount,
     };

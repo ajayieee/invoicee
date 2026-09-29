@@ -219,6 +219,29 @@ async function runInvoiceTestSuite() {
   const todayStr = new Date().toISOString().split('T')[0];
   const dueStr = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
 
+  // 3.0: UAE FTA Article 67 14-day supply date rule validation
+  const invalidSupplyDateAttempt = invoiceService.createInvoice({
+    customer_id: testCustomer.id,
+    invoice_date: '2026-03-25',
+    supply_date: '2026-03-01', // 24 days gap > 14 days
+    due_date: dueStr,
+    status: 'DRAFT',
+    items: [
+      {
+        description: 'Late invoiced supply',
+        quantity: 1,
+        unit: 'Service',
+        unit_price: 1000,
+        vat_rate_id: standardVat.id,
+        vat_treatment: 'STANDARD_RATED',
+      },
+    ],
+  });
+  assert(
+    Boolean(!invalidSupplyDateAttempt.success && invalidSupplyDateAttempt.error?.includes('14 calendar days')),
+    'FTA STATUTORY GUARD: Rejects invoice issuance exceeding 14 calendar days from date of supply (Article 67)'
+  );
+
   // 3.1: Create Draft Invoice
   const createDraftRes = invoiceService.createInvoice({
     customer_id: testCustomer.id,

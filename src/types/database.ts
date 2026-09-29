@@ -40,6 +40,29 @@ export type CreditNoteStatus =
   | 'REFUNDED' 
   | 'CANCELLED';
 
+export type CreditNoteType = 
+  | 'FULL' 
+  | 'PARTIAL' 
+  | 'LINE_SELECTION' 
+  | 'QUANTITY_ADJUSTMENT' 
+  | 'AMOUNT_ADJUSTMENT';
+
+export type RefundStatus = 
+  | 'APPLIED_TO_INVOICE' 
+  | 'REFUNDED_CASH' 
+  | 'REFUNDED_BANK' 
+  | 'CREDIT_ON_ACCOUNT'
+  | 'PENDING';
+
+export type CreditReasonCode = 
+  | 'RE_CORRECTION' 
+  | 'RE_RETURN' 
+  | 'RE_DISCOUNT' 
+  | 'RE_PRICE_REDUCTION' 
+  | 'RE_CANCELLATION' 
+  | 'RE_DEFECT' 
+  | 'RE_OTHER';
+
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT';
 
 export type EInvoiceStatus = 
@@ -308,6 +331,8 @@ export interface CreditNoteItem {
   product_id?: string;
   item_order: number;
   description: string;
+  original_invoiced_quantity?: number;
+  original_unit_price?: number;
   quantity: number;
   unit_price: number;
   unit: string;
@@ -317,6 +342,7 @@ export interface CreditNoteItem {
   vat_rate_percentage: number;
   vat_amount: number;
   total_gross: number;
+  adjustment_type?: 'FULL' | 'QUANTITY' | 'AMOUNT' | 'LINE';
 }
 
 export interface CreditNoteAllocation {
@@ -325,8 +351,9 @@ export interface CreditNoteAllocation {
   credit_note_id: string;
   invoice_id?: string;
   amount: number;
-  allocation_type: 'INVOICE_OFFSET' | 'CASH_REFUND';
+  allocation_type: 'INVOICE_OFFSET' | 'CASH_REFUND' | 'BANK_REFUND' | 'CREDIT_ON_ACCOUNT';
   allocated_at: string;
+  notes?: string;
 }
 
 export interface CreditNote {
@@ -334,11 +361,16 @@ export interface CreditNote {
   organization_id: string;
   invoice_id: string;
   invoice_number?: string;
+  invoice_date?: string;
+  original_invoice_total?: number;
   customer_id: string;
   customer_name?: string;
   credit_note_number: string;
   credit_note_date: string;
   status: CreditNoteStatus;
+  credit_type: CreditNoteType;
+  refund_status: RefundStatus;
+  credit_reason_code?: CreditReasonCode;
   reason: string;
   currency: string;
   subtotal_net: number;
@@ -350,9 +382,16 @@ export interface CreditNote {
   company_snapshot: Partial<CompanySettings>;
   cancelled_at?: string;
   cancellation_reason?: string;
+  refund_processed_at?: string;
+  refund_reference?: string;
+  // UAE E-Invoice / ASP Integration fields
   e_invoice_status: EInvoiceStatus;
   e_invoice_uuid?: string;
   e_invoice_hash?: string;
+  e_invoice_qr_code?: string;
+  asp_provider_name?: string;
+  asp_submission_id?: string;
+  asp_cleared_at?: string;
   items: CreditNoteItem[];
   allocations?: CreditNoteAllocation[];
   created_at: string;

@@ -847,6 +847,11 @@ export const INITIAL_CREDIT_NOTES: CreditNote[] = [
     credit_note_number: 'CN-2026-0001',
     credit_note_date: '2026-02-08',
     status: 'APPLIED',
+    credit_type: 'QUANTITY_ADJUSTMENT',
+    refund_status: 'REFUNDED_CASH',
+    credit_reason_code: 'RE_PRICE_REDUCTION',
+    invoice_date: '2026-01-20',
+    original_invoice_total: 10500.0,
     reason: 'Price adjustment on 2 consulting hours following project retrospective.',
     currency: 'AED',
     subtotal_net: 1000.0,
@@ -864,6 +869,11 @@ export const INITIAL_CREDIT_NOTES: CreditNote[] = [
     },
     e_invoice_status: 'ACCEPTED',
     e_invoice_uuid: 'uae-cn-88349281-20260208',
+    e_invoice_hash: 'sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
+    e_invoice_qr_code: 'https://tax.gov.ae/verify?doc=CN-2026-0001&trn=100284759600003&tot=1050.00',
+    asp_provider_name: 'Simulated UAE ASP (Accredited Service Provider)',
+    asp_submission_id: 'ASP-SUB-20260208-001',
+    asp_cleared_at: '2026-02-08T12:05:00Z',
     items: [
       {
         id: 'cni-001',
