@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar, NavTab } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { DashboardView } from '@/components/dashboard/DashboardView';
@@ -230,6 +230,26 @@ function AppHomeContent() {
 }
 
 export default function AppHome() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent shadow-lg shadow-emerald-500/20" />
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-white tracking-wide">Al Thuraya Tech</h3>
+            <p className="text-xs text-slate-400">Loading UAE Invoicing & Sales Engine...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthProvider>
       <AppHomeContent />
