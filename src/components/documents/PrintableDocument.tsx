@@ -344,6 +344,30 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
           </div>
         </div>
 
+        {/* Client Acceptance Block for Quotations */}
+        {docType === 'QUOTE' && (
+          <div className="my-6 p-4 rounded-xl border border-slate-200 bg-slate-50/60">
+            <div className="font-bold text-xs text-slate-900 mb-6 flex items-center justify-between">
+              <span>Client Acceptance & Authorization / اعتماد وتوقيع العميل</span>
+              <span className="text-[10px] text-slate-500 font-normal">Valid upon signature and company seal</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-[11px] text-slate-600">
+              <div className="border-t border-slate-400 pt-2">
+                <span className="text-slate-400 block text-[10px] mb-1">Authorized Name & Designation:</span>
+                <span className="font-medium text-slate-800 block h-6"></span>
+              </div>
+              <div className="border-t border-slate-400 pt-2">
+                <span className="text-slate-400 block text-[10px] mb-1">Signature & Company Stamp:</span>
+                <span className="font-medium text-slate-800 block h-6"></span>
+              </div>
+              <div className="border-t border-slate-400 pt-2">
+                <span className="text-slate-400 block text-[10px] mb-1">Date of Acceptance:</span>
+                <span className="font-medium text-slate-800 block h-6">____ / ____ / 2026</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer Terms & Legal Notes */}
         <div className="border-t border-slate-200 pt-4 text-xs text-slate-500 space-y-1">
           {notes && <div><strong>Notes:</strong> {notes}</div>}

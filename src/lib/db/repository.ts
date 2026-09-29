@@ -349,7 +349,7 @@ class Repository {
     const quoteNum = this.allocateSequenceNumber('QUO', this.store.companySettings.quote_prefix);
 
     const newQuote: Quote = {
-      id: `quo-${Date.now()}`,
+      id: `quo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       organization_id: this.store.companySettings.organization_id,
       customer_id: quote.customer_id || '',
       customer_name: customer?.company_name || customer?.contact_person || 'Client',
@@ -379,6 +379,17 @@ class Repository {
     return newQuote;
   }
 
+  public deleteQuote(id: string): boolean {
+    const idx = this.store.quotes.findIndex((q) => q.id === id);
+    if (idx !== -1) {
+      const removed = this.store.quotes.splice(idx, 1)[0];
+      this.logAudit('QUOTE', id, 'DELETED', removed, null);
+      this.persist();
+      return true;
+    }
+    return false;
+  }
+
   public updateQuoteStatus(id: string, status: QuoteStatus): Quote {
     const quote = this.store.quotes.find((q) => q.id === id);
     if (!quote) throw new Error('Quote not found');
@@ -406,7 +417,7 @@ class Repository {
     const dueDate = new Date(Date.now() + (customer?.payment_terms_days || 30) * 86400000).toISOString().split('T')[0];
 
     const invoice: Invoice = {
-      id: `inv-${Date.now()}`,
+      id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       organization_id: company.organization_id,
       customer_id: quote.customer_id,
       originating_quote_id: quote.id,

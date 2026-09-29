@@ -90,38 +90,17 @@ export class VatCalculator {
     invoiceDiscountType?: DiscountType,
     invoiceDiscountValue: number = 0
   ): CalculationResult {
-    const calculatedLines = items.map((item) => this.calculateLine(item));
+    // 1. Calculate raw line amounts before document discount
+    const rawLines = items.map((item) => this.calculateLine(item));
 
     let totalSubtotalNet = new Decimal(0);
-    let totalVat = new Decimal(0);
-
-    const breakdownMap = new Map<string, { treatment: VatTreatment; rate: number; taxable: Decimal; vat: Decimal }>();
-
-    calculatedLines.forEach((line, index) => {
+    rawLines.forEach((line) => {
       totalSubtotalNet = totalSubtotalNet.plus(line.subtotal_net);
-      totalVat = totalVat.plus(line.vat_amount);
-
-      const rawItem = items[index];
-      const rate = rawItem.vat_rate_percentage || 0;
-      const treatment = rawItem.vat_treatment || (rate > 0 ? 'STANDARD_RATED' : 'ZERO_RATED');
-      const key = `${treatment}_${rate}`;
-
-      if (!breakdownMap.has(key)) {
-        breakdownMap.set(key, {
-          treatment,
-          rate,
-          taxable: new Decimal(0),
-          vat: new Decimal(0),
-        });
-      }
-
-      const bucket = breakdownMap.get(key)!;
-      bucket.taxable = bucket.taxable.plus(line.subtotal_net);
-      bucket.vat = bucket.vat.plus(line.vat_amount);
     });
 
+    // 2. Determine document-level discount amount
     let invoiceDiscountAmount = new Decimal(0);
-    if (invoiceDiscountValue > 0) {
+    if (invoiceDiscountValue > 0 && totalSubtotalNet.greaterThan(0)) {
       if (invoiceDiscountType === 'PERCENTAGE') {
         invoiceDiscountAmount = totalSubtotalNet.times(invoiceDiscountValue).dividedBy(100);
       } else {
@@ -132,6 +111,60 @@ export class VatCalculator {
     if (invoiceDiscountAmount.greaterThan(totalSubtotalNet)) {
       invoiceDiscountAmount = totalSubtotalNet;
     }
+
+    // 3. Apportion document discount across lines and calculate final VAT & taxable bases
+    let totalVat = new Decimal(0);
+    const breakdownMap = new Map<string, { treatment: VatTreatment; rate: number; taxable: Decimal; vat: Decimal }>();
+
+    const finalLines: CalculatedLineItem[] = rawLines.map((line, index) => {
+      const rawItem = items[index];
+      const rate = new Decimal(rawItem.vat_rate_percentage || 0);
+      const treatment = rawItem.vat_treatment || (rate.greaterThan(0) ? 'STANDARD_RATED' : 'ZERO_RATED');
+
+      let apportionedDocDiscount = new Decimal(0);
+      if (invoiceDiscountAmount.greaterThan(0) && totalSubtotalNet.greaterThan(0)) {
+        apportionedDocDiscount = new Decimal(line.subtotal_net)
+          .dividedBy(totalSubtotalNet)
+          .times(invoiceDiscountAmount);
+      }
+
+      const lineTaxableNet = new Decimal(line.subtotal_net).minus(apportionedDocDiscount);
+
+      let lineVat = new Decimal(0);
+      if (treatment === 'STANDARD_RATED' && rate.greaterThan(0)) {
+        lineVat = lineTaxableNet.times(rate).dividedBy(100);
+      }
+
+      totalVat = totalVat.plus(lineVat);
+
+      // Aggregate VAT summary buckets
+      const key = `${treatment}_${rate.toNumber()}`;
+      if (!breakdownMap.has(key)) {
+        breakdownMap.set(key, {
+          treatment,
+          rate: rate.toNumber(),
+          taxable: new Decimal(0),
+          vat: new Decimal(0),
+        });
+      }
+      const bucket = breakdownMap.get(key)!;
+      bucket.taxable = bucket.taxable.plus(lineTaxableNet);
+      bucket.vat = bucket.vat.plus(lineVat);
+
+      const roundedVat = lineVat.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+      const roundedGross = new Decimal(line.subtotal_net)
+        .plus(lineVat)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+        .toNumber();
+
+      return {
+        gross_price: line.gross_price,
+        discount_amount: line.discount_amount,
+        subtotal_net: line.subtotal_net,
+        vat_amount: roundedVat,
+        total_gross: roundedGross,
+      };
+    });
 
     const roundedInvoiceDiscount = invoiceDiscountAmount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
     const finalSubtotalNet = totalSubtotalNet.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
@@ -150,7 +183,7 @@ export class VatCalculator {
     }));
 
     return {
-      items: calculatedLines,
+      items: finalLines,
       subtotal_net: finalSubtotalNet,
       invoice_discount_amount: roundedInvoiceDiscount,
       vat_total: finalVatTotal,
