@@ -1,4 +1,4 @@
-import { Customer, CustomerRelation, CustomerType, UAEEmirate, Invoice, Quote } from '@/types/database';
+import { Customer, CustomerRelation, CustomerType, UAEEmirate, Invoice, Quote, Payment } from '@/types/database';
 import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
 import { ValidationRules } from '@/lib/validation/rules';
@@ -35,6 +35,7 @@ export interface Customer360Summary {
   customer: Customer;
   invoices: Invoice[];
   quotes: Quote[];
+  payments: Payment[];
   totalInvoiced: number;
   totalPaid: number;
   totalBalanceDue: number;
@@ -178,6 +179,7 @@ class CustomerService {
 
     const invoices = db.getInvoices().filter((i) => i.customer_id === id);
     const quotes = db.getQuotes().filter((q) => q.customer_id === id);
+    const payments = db.getPayments().filter((p) => p.customer_id === id);
 
     let totalInvoiced = 0;
     let totalPaid = 0;
@@ -199,6 +201,7 @@ class CustomerService {
       customer,
       invoices,
       quotes,
+      payments,
       totalInvoiced: Math.round(totalInvoiced * 100) / 100,
       totalPaid: Math.round(totalPaid * 100) / 100,
       totalBalanceDue: Math.round(totalBalanceDue * 100) / 100,

@@ -92,10 +92,12 @@ export const INITIAL_VAT_RATES: VatRate[] = [
 ];
 
 export const INITIAL_PAYMENT_METHODS: PaymentMethod[] = [
-  { id: 'pm-001', organization_id: 'org-default-001', name: 'Bank Transfer (Wire)', code: 'BANK_TRANSFER', is_active: true },
-  { id: 'pm-002', organization_id: 'org-default-001', name: 'Company Cheque', code: 'CHEQUE', is_active: true },
-  { id: 'pm-003', organization_id: 'org-default-001', name: 'Corporate Credit Card', code: 'CREDIT_CARD', is_active: true },
-  { id: 'pm-004', organization_id: 'org-default-001', name: 'Cash', code: 'CASH', is_active: true },
+  { id: 'pm-001', organization_id: 'org-default-001', name: 'Bank Transfer', code: 'BANK_TRANSFER', is_active: true },
+  { id: 'pm-002', organization_id: 'org-default-001', name: 'Cash', code: 'CASH', is_active: true },
+  { id: 'pm-003', organization_id: 'org-default-001', name: 'Credit Card', code: 'CREDIT_CARD', is_active: true },
+  { id: 'pm-004', organization_id: 'org-default-001', name: 'Debit Card', code: 'DEBIT_CARD', is_active: true },
+  { id: 'pm-005', organization_id: 'org-default-001', name: 'Cheque', code: 'CHEQUE', is_active: true },
+  { id: 'pm-006', organization_id: 'org-default-001', name: 'Other', code: 'OTHER', is_active: true },
 ];
 
 export const INITIAL_CATEGORIES: ProductCategory[] = [

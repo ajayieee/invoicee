@@ -649,6 +649,8 @@ class Repository {
     payment_date?: string;
     reference_number?: string;
     notes?: string;
+    payment_proof_url?: string;
+    payment_proof_name?: string;
   }): Payment {
     const inv = this.getInvoiceById(data.invoice_id);
     if (!inv) throw new Error('Invoice not found');
@@ -671,7 +673,7 @@ class Repository {
     const payNum = this.allocateSequenceNumber('PAY', company.payment_prefix);
 
     const payment: Payment = {
-      id: `pay-${Date.now()}`,
+      id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
       organization_id: company.organization_id,
       invoice_id: inv.id,
       invoice_number: inv.invoice_number,
@@ -686,6 +688,8 @@ class Repository {
       exchange_rate: 1.0,
       reference_number: data.reference_number || '',
       notes: data.notes || '',
+      payment_proof_url: data.payment_proof_url,
+      payment_proof_name: data.payment_proof_name,
       status: 'RECORDED',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

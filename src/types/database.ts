@@ -292,6 +292,8 @@ export interface Payment {
   exchange_rate: number;
   reference_number?: string;
   notes?: string;
+  payment_proof_url?: string;
+  payment_proof_name?: string;
   status: PaymentStatus;
   reversed_at?: string;
   reversal_reason?: string;

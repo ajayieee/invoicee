@@ -17,6 +17,7 @@ import {
   Receipt,
   FileText,
   Filter,
+  CreditCard,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -675,6 +676,64 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                       <tr>
                         <td colSpan={5} className="p-4 text-center text-slate-400">
                           No invoices recorded for this account.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Payments List */}
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-900 flex items-center gap-1.5">
+                  <CreditCard className="h-4 w-4 text-emerald-600" />
+                  <span>Payments Received from Account</span>
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  {detail360.payments?.length || 0} payments found
+                </span>
+              </div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 text-slate-500 text-[11px] sticky top-0">
+                    <tr>
+                      <th className="p-2 font-medium">Receipt #</th>
+                      <th className="p-2 font-medium">Date</th>
+                      <th className="p-2 font-medium">Invoice #</th>
+                      <th className="p-2 font-medium">Method</th>
+                      <th className="p-2 font-medium">Ref #</th>
+                      <th className="p-2 font-medium text-right">Amount (AED)</th>
+                      <th className="p-2 font-medium text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {detail360.payments?.map((pmt) => (
+                      <tr key={pmt.id} className="hover:bg-slate-50">
+                        <td className="p-2 font-mono font-semibold text-slate-900">
+                          {pmt.payment_number}
+                        </td>
+                        <td className="p-2 text-slate-500">{formatDate(pmt.payment_date)}</td>
+                        <td className="p-2 font-mono text-slate-700">{pmt.invoice_number || '-'}</td>
+                        <td className="p-2 text-slate-600">{pmt.payment_method_name || 'Payment'}</td>
+                        <td className="p-2 text-slate-500 font-mono text-[10px]">
+                          {pmt.reference_number || '-'}
+                        </td>
+                        <td className="p-2 font-semibold text-emerald-700 text-right">
+                          {formatCurrency(pmt.amount)}
+                        </td>
+                        <td className="p-2 text-right">
+                          <Badge variant={pmt.status === 'RECORDED' ? 'success' : 'secondary'}>
+                            {pmt.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!detail360.payments || detail360.payments.length === 0) && (
+                      <tr>
+                        <td colSpan={7} className="p-4 text-center text-slate-400">
+                          No payments recorded for this account.
                         </td>
                       </tr>
                     )}
