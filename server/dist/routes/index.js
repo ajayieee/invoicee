@@ -1,0 +1,24 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_routes_js_1 = __importDefault(require("./auth.routes.js"));
+const invoice_routes_js_1 = __importDefault(require("./invoice.routes.js"));
+const payment_routes_js_1 = __importDefault(require("./payment.routes.js"));
+const customer_routes_js_1 = __importDefault(require("./customer.routes.js"));
+const creditNote_routes_js_1 = __importDefault(require("./creditNote.routes.js"));
+const quote_routes_js_1 = __importDefault(require("./quote.routes.js"));
+const report_routes_js_1 = __importDefault(require("./report.routes.js"));
+const settings_routes_js_1 = __importDefault(require("./settings.routes.js"));
+const apiRouter = (0, express_1.Router)();
+apiRouter.use('/auth', auth_routes_js_1.default);
+apiRouter.use('/invoices', invoice_routes_js_1.default);
+apiRouter.use('/payments', payment_routes_js_1.default);
+apiRouter.use('/customers', customer_routes_js_1.default);
+apiRouter.use('/credit-notes', creditNote_routes_js_1.default);
+apiRouter.use('/quotes', quote_routes_js_1.default);
+apiRouter.use('/reports', report_routes_js_1.default);
+apiRouter.use('/settings', settings_routes_js_1.default);
+exports.default = apiRouter;

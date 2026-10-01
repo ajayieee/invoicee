@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const invoice_controller_js_1 = require("../controllers/invoice.controller.js");
+const auth_middleware_js_1 = require("../middleware/auth.middleware.js");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_js_1.authenticate, invoice_controller_js_1.getInvoices);
+router.get('/:id', auth_middleware_js_1.authenticate, invoice_controller_js_1.getInvoiceById);
+router.post('/', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), invoice_controller_js_1.createInvoice);
+router.put('/:id', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), invoice_controller_js_1.updateDraftInvoice);
+router.post('/:id/issue', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT'), invoice_controller_js_1.issueInvoice);
+router.post('/:id/duplicate', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), invoice_controller_js_1.duplicateInvoice);
+router.post('/:id/cancel', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT'), invoice_controller_js_1.cancelInvoice);
+exports.default = router;

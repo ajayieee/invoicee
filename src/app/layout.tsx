@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Al Thuraya Tech | UAE Invoicing & Sales Management",
+  title: "Pixelflames | UAE Invoicing & Sales Management",
   description: "UAE FTA-Compliant 5% VAT Invoicing, Quotations, Receivables & Sales Management SaaS",
 };
 

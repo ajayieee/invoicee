@@ -17,6 +17,7 @@ import { QuoteBuilderModal } from '@/components/quotes/QuoteBuilderModal';
 import { InvoiceBuilderModal } from '@/components/invoices/InvoiceBuilderModal';
 import { RecordPaymentModal } from '@/components/payments/RecordPaymentModal';
 import { CreateCreditNoteModal } from '@/components/credit-notes/CreateCreditNoteModal';
+import { InitialAdminSetupModal } from '@/components/auth/InitialAdminSetupModal';
 import { Invoice } from '@/types/database';
 import { db } from '@/lib/db/repository';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -38,6 +39,21 @@ function AppHomeContent() {
   const [paymentTargetInvoice, setPaymentTargetInvoice] = useState<Invoice | null>(null);
   const [creditNoteOpen, setCreditNoteOpen] = useState(false);
   const [creditNoteTargetInvoice, setCreditNoteTargetInvoice] = useState<Invoice | null>(null);
+  const [setupModalOpen, setSetupModalOpen] = useState(false);
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    fetch(`${apiUrl}/auth/setup-status`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.setupRequired) {
+          setSetupModalOpen(true);
+        }
+      })
+      .catch(() => {
+        // Backend offline or local standalone
+      });
+  }, []);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -230,6 +246,14 @@ function AppHomeContent() {
           setCurrentTab('credit-notes');
         }}
       />
+
+      <InitialAdminSetupModal
+        open={setupModalOpen}
+        onOpenChange={setSetupModalOpen}
+        onSetupSuccess={(user) => {
+          triggerRefresh();
+        }}
+      />
     </div>
   );
 }
@@ -247,7 +271,7 @@ export default function AppHome() {
         <div className="flex flex-col items-center gap-4 text-center max-w-sm">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent shadow-lg shadow-emerald-500/20" />
           <div className="space-y-1">
-            <h3 className="text-base font-semibold text-white tracking-wide">Al Thuraya Tech</h3>
+            <h3 className="text-base font-semibold text-white tracking-wide">Pixelflames</h3>
             <p className="text-xs text-slate-400">Loading UAE Invoicing & Sales Engine...</p>
           </div>
         </div>

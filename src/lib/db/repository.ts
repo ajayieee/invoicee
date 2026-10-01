@@ -83,7 +83,20 @@ class Repository {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          this.store = JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          // If legacy demo data or old Al Thuraya branding is detected, wipe localStorage
+          if (
+            parsed.companySettings?.legal_company_name?.includes('Al Thuraya') ||
+            parsed.companySettings?.trading_name?.includes('Al Thuraya') ||
+            parsed.customers?.some((c: any) => c.company_name?.includes('Dubai Logistics')) ||
+            parsed.invoices?.some((i: any) => i.invoice_number === 'INV-2026-0001')
+          ) {
+            localStorage.removeItem(STORAGE_KEY);
+            this.store = getInitialStore();
+            this.persist();
+          } else {
+            this.store = parsed;
+          }
         } else {
           this.persist();
         }

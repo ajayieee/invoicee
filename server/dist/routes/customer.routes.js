@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const customer_controller_js_1 = require("../controllers/customer.controller.js");
+const auth_middleware_js_1 = require("../middleware/auth.middleware.js");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_js_1.authenticate, customer_controller_js_1.getCustomers);
+router.get('/:id', auth_middleware_js_1.authenticate, customer_controller_js_1.getCustomerById);
+router.get('/:id/360', auth_middleware_js_1.authenticate, customer_controller_js_1.getCustomer360);
+router.post('/', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), customer_controller_js_1.createCustomer);
+router.put('/:id', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), customer_controller_js_1.updateCustomer);
+router.delete('/:id', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT'), customer_controller_js_1.deleteCustomer);
+exports.default = router;

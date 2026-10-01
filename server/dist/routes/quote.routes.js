@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const quote_controller_js_1 = require("../controllers/quote.controller.js");
+const auth_middleware_js_1 = require("../middleware/auth.middleware.js");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_js_1.authenticate, quote_controller_js_1.getQuotes);
+router.get('/:id', auth_middleware_js_1.authenticate, quote_controller_js_1.getQuoteById);
+router.post('/', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), quote_controller_js_1.createQuote);
+router.post('/:id/convert', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT', 'SALES'), quote_controller_js_1.convertQuoteToInvoice);
+exports.default = router;

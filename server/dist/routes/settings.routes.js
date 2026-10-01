@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const settings_controller_js_1 = require("../controllers/settings.controller.js");
+const auth_middleware_js_1 = require("../middleware/auth.middleware.js");
+const router = (0, express_1.Router)();
+router.get('/company', auth_middleware_js_1.authenticate, settings_controller_js_1.getCompanySettings);
+router.put('/company', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT'), settings_controller_js_1.updateCompanySettings);
+router.get('/vat-rates', auth_middleware_js_1.authenticate, settings_controller_js_1.getVatRates);
+router.get('/payment-methods', auth_middleware_js_1.authenticate, settings_controller_js_1.getPaymentMethods);
+exports.default = router;

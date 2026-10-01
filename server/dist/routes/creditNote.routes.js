@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const creditNote_controller_js_1 = require("../controllers/creditNote.controller.js");
+const auth_middleware_js_1 = require("../middleware/auth.middleware.js");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_js_1.authenticate, creditNote_controller_js_1.getCreditNotes);
+router.get('/:id', auth_middleware_js_1.authenticate, creditNote_controller_js_1.getCreditNoteById);
+router.post('/', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER', 'ACCOUNTANT'), creditNote_controller_js_1.createCreditNote);
+exports.default = router;

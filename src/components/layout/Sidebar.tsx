@@ -44,8 +44,8 @@ interface SidebarProps {
 export function Sidebar({
   currentTab,
   onSelectTab,
-  orgName = 'Al Thuraya Tech',
-  trn = '100284759600003',
+  orgName = 'Pixelflames',
+  trn = '100000000000003',
   emirate = 'Dubai',
   mobileOpen = false,
   onCloseMobile,

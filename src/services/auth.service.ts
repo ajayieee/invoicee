@@ -3,40 +3,13 @@ import { db } from '@/lib/db/repository';
 
 export const SYSTEM_USERS: User[] = [
   {
-    id: 'usr_tariq_01',
-    name: 'Tariq Mansour',
-    email: 'tariq.mansour@althuraya.ae',
-    title: 'Managing Director & Founder',
+    id: 'usr_admin_01',
+    name: 'Ajay',
+    email: 'ajay@pixelflames.com',
+    title: 'Managing Director & Administrator',
     role: 'OWNER',
-    organization_id: 'org_althuraya_001',
+    organization_id: 'org_pixelflames_001',
     avatar_color: 'bg-emerald-600',
-  },
-  {
-    id: 'usr_sarah_02',
-    name: 'Sarah Al-Nuaimi',
-    email: 'sarah.nuaimi@althuraya.ae',
-    title: 'Senior Financial Controller',
-    role: 'ACCOUNTANT',
-    organization_id: 'org_althuraya_001',
-    avatar_color: 'bg-sky-600',
-  },
-  {
-    id: 'usr_omar_03',
-    name: 'Omar Al-Hashimi',
-    email: 'omar.hashimi@althuraya.ae',
-    title: 'B2B Sales Operations Lead',
-    role: 'SALES',
-    organization_id: 'org_althuraya_001',
-    avatar_color: 'bg-purple-600',
-  },
-  {
-    id: 'usr_layla_04',
-    name: 'Layla Mostafa',
-    email: 'layla.mostafa@althuraya.ae',
-    title: 'External FTA Tax Auditor',
-    role: 'VIEWER',
-    organization_id: 'org_althuraya_001',
-    avatar_color: 'bg-amber-600',
   },
 ];
 
