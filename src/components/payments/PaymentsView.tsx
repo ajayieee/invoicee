@@ -236,11 +236,11 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
         </div>
 
         {/* Date Range Bar */}
-        <div className="flex items-center gap-3 pt-2 border-t border-slate-100 flex-wrap">
-          <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-2 border-t border-slate-100">
+          <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1 shrink-0">
             <Calendar className="h-3.5 w-3.5" /> Date Range:
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="date"
               value={startDate}
@@ -248,7 +248,7 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
                 setStartDate(e.target.value);
                 setPage(1);
               }}
-              className="text-xs px-2 py-1 rounded border border-slate-200 bg-slate-50"
+              className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 flex-1 sm:flex-none"
             />
             <span className="text-slate-400">to</span>
             <input
@@ -258,7 +258,7 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
                 setEndDate(e.target.value);
                 setPage(1);
               }}
-              className="text-xs px-2 py-1 rounded border border-slate-200 bg-slate-50"
+              className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 flex-1 sm:flex-none"
             />
           </div>
         </div>
@@ -268,7 +268,7 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-xs text-left min-w-[900px]">
               <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 font-medium">
                 <tr>
                   <th className="px-4 py-3">Receipt #</th>

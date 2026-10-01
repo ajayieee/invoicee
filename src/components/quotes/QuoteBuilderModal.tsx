@@ -255,15 +255,15 @@ export function QuoteBuilderModal({
         onOpenChange={onOpenChange}
         title={initialQuoteId ? 'Edit Quotation Draft' : 'Create Commercial Quotation'}
         description="Prepare sequential cost proposals, apply line-level discounts, and compute UAE 5% VAT."
-        maxWidth="3xl"
+        maxWidth="5xl"
         footer={
-          <div className="flex flex-wrap items-center justify-between w-full gap-2 text-xs">
-            <div className="text-slate-500 font-mono">
-              Total ({company.default_currency}):{' '}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full gap-3 text-xs">
+            <div className="text-slate-500 font-mono flex items-center justify-between sm:justify-start gap-2">
+              <span>Total ({company.default_currency}):</span>
               <strong className="text-emerald-800 text-sm">{formatCurrency(calcResult.grand_total)}</strong>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
               <Button variant="secondary" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -382,8 +382,8 @@ export function QuoteBuilderModal({
           </div>
 
           {/* Line Items Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[780px]">
               <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200 text-[11px]">
                 <tr>
                   <th className="p-2.5 min-w-[200px]">Description *</th>

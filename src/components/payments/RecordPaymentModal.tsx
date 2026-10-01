@@ -190,8 +190,8 @@ export function RecordPaymentModal({
       description="Record partial or full payment with bank reference, duplicate prevention, and proof upload."
       maxWidth="3xl"
       footer={
-        <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3">
-          <div className="text-xs text-slate-500 flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full gap-3">
+          <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
             <span>Projected Balance Due:</span>
             <strong
               className={`font-mono text-sm ${
@@ -206,7 +206,7 @@ export function RecordPaymentModal({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

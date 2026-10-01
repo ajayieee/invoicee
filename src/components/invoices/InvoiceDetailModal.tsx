@@ -311,8 +311,8 @@ export function InvoiceDetailModal({
           </div>
 
           {/* Line Items Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
-            <table className="w-full text-xs text-left">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-xs">
+            <table className="w-full text-xs text-left min-w-[700px]">
               <thead className="bg-slate-900 text-white font-medium">
                 <tr>
                   <th className="px-3 py-2 w-10">#</th>
@@ -420,8 +420,8 @@ export function InvoiceDetailModal({
                 <CreditCard className="h-4 w-4 text-emerald-600" />
                 <span>Recorded Payments ({payments.length})</span>
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                <table className="w-full text-xs text-left">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
+                <table className="w-full text-xs text-left min-w-[550px]">
                   <thead className="bg-slate-100 text-slate-600 font-medium">
                     <tr>
                       <th className="px-3 py-2">Receipt #</th>
@@ -462,8 +462,8 @@ export function InvoiceDetailModal({
                 <RotateCcw className="h-4 w-4 text-amber-600" />
                 <span>Credit Notes Issued ({creditNotes.length})</span>
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                <table className="w-full text-xs text-left">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
+                <table className="w-full text-xs text-left min-w-[550px]">
                   <thead className="bg-amber-50 text-amber-900 font-medium">
                     <tr>
                       <th className="px-3 py-2">Credit Note #</th>

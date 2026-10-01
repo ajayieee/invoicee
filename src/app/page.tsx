@@ -24,6 +24,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 function AppHomeContent() {
   const { organization, refreshOrgContext } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<{
     docType: 'QUOTE' | 'INVOICE' | 'CREDIT_NOTE' | 'STATEMENT';
@@ -80,10 +81,13 @@ function AppHomeContent() {
               onSelectTab={(tab) => {
                 setPrintDoc(null);
                 setCurrentTab(tab);
+                setMobileMenuOpen(false);
               }}
               orgName={organization.name}
               trn={organization.trn}
               emirate={organization.emirate}
+              mobileOpen={mobileMenuOpen}
+              onCloseMobile={() => setMobileMenuOpen(false)}
             />
           </div>
         )}
@@ -98,12 +102,13 @@ function AppHomeContent() {
                 onSearchChange={setSearchQuery}
                 searchQuery={searchQuery}
                 onResetData={handleResetData}
+                onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
               />
             </div>
           )}
 
           {/* Body Canvas */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto" key={refreshKey}>
+          <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto" key={refreshKey}>
             {printDoc ? (
               <PrintableDocument
                 docType={printDoc.docType}

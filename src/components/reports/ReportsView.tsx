@@ -843,7 +843,7 @@ export function ReportsView() {
 
               {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[950px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('date')}>
@@ -935,7 +935,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[1000px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('invoice_number')}>
@@ -1014,7 +1014,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[900px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('payment_number')}>
@@ -1083,7 +1083,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[850px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('invoice_number')}>
@@ -1154,7 +1154,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[850px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('invoice_number')}>
@@ -1231,7 +1231,7 @@ export function ReportsView() {
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs text-left">
+                  <table className="w-full text-xs text-left min-w-[700px]">
                     <thead className="bg-slate-900 text-white font-semibold">
                       <tr>
                         <th className="p-2.5">Box #</th>
@@ -1346,7 +1346,7 @@ export function ReportsView() {
                   </span>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
+                  <table className="w-full text-xs text-left min-w-[900px]">
                     <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                       <tr>
                         <th className="p-2.5">Date</th>
@@ -1408,7 +1408,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[950px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('credit_note_number')}>
@@ -1496,7 +1496,7 @@ export function ReportsView() {
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs text-left">
+                      <table className="w-full text-xs text-left min-w-[750px]">
                         <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Date</th>
@@ -1572,7 +1572,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[750px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('customer_name')}>
@@ -1654,7 +1654,7 @@ export function ReportsView() {
               )}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[700px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                     <tr>
                       <th className="p-2.5 cursor-pointer" onClick={() => handleSort('product_name')}>
@@ -1744,7 +1744,7 @@ export function ReportsView() {
                     </div>
 
                     <div className="overflow-x-auto pt-2">
-                      <table className="w-full text-xs text-left">
+                      <table className="w-full text-xs text-left min-w-[950px]">
                         <thead className="bg-slate-50 text-slate-600 font-semibold border-y border-slate-200">
                           <tr>
                             <th className="p-2.5 cursor-pointer" onClick={() => handleSort('customer_name')}>

@@ -223,10 +223,10 @@ export function CreateCreditNoteModal({
       onOpenChange={onOpenChange}
       title="Issue UAE Tax Credit Note / إشعار دائن ضريبي"
       description="Create a credit adjustment referencing an issued tax invoice with line item precision and audit compliance."
-      maxWidth="3xl"
+      maxWidth="4xl"
       footer={
-        <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3">
-          <div className="flex items-center gap-4 text-xs text-slate-600">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-slate-600">
             <div>
               Net Credit: <strong className="font-mono text-slate-800">{formatCurrency(totalNet)}</strong>
             </div>
@@ -237,7 +237,7 @@ export function CreateCreditNoteModal({
               Total Credit: <strong className="font-mono text-sm font-bold">{formatCurrency(grandTotalCredit)} AED</strong>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -340,8 +340,8 @@ export function CreateCreditNoteModal({
             </span>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-            <table className="w-full text-xs text-left">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-xs">
+            <table className="w-full text-xs text-left min-w-[650px]">
               <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
                 <tr>
                   <th className="p-2.5 w-10 text-center">Credit</th>

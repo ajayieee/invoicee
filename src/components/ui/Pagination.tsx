@@ -54,9 +54,9 @@ export function Pagination({
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border-t border-slate-100 text-xs text-slate-600 ${className}`}
+      className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-3 sm:px-4 py-3 bg-white border-t border-slate-100 text-xs text-slate-600 ${className}`}
     >
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2 sm:gap-4 w-full sm:w-auto text-[11px] sm:text-xs">
         <div>
           Showing <span className="font-semibold text-slate-900">{startItem}</span> to{' '}
           <span className="font-semibold text-slate-900">{endItem}</span> of{' '}
@@ -81,7 +81,7 @@ export function Pagination({
         )}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-center gap-1 overflow-x-auto max-w-full">
         <button
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}

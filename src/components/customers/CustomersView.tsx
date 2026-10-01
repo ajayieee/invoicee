@@ -369,7 +369,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+              <table className="w-full text-xs text-left min-w-[800px]">
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 font-medium">
                   <tr>
                     <th className="px-4 py-3">Account Name / Contact</th>
@@ -639,8 +639,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                 <span className="font-semibold text-slate-900">Invoices Billed to Account</span>
                 <span className="text-[11px] text-slate-500">{detail360.invoices.length} invoices found</span>
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                <table className="w-full text-left">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-48 overflow-y-auto">
+                <table className="w-full text-left min-w-[500px]">
                   <thead className="bg-slate-50 text-slate-500 text-[11px] sticky top-0">
                     <tr>
                       <th className="p-2 font-medium">Invoice #</th>
@@ -695,8 +695,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                   {detail360.payments?.length || 0} payments found
                 </span>
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                <table className="w-full text-left">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-48 overflow-y-auto">
+                <table className="w-full text-left min-w-[550px]">
                   <thead className="bg-slate-50 text-slate-500 text-[11px] sticky top-0">
                     <tr>
                       <th className="p-2 font-medium">Receipt #</th>

@@ -13,6 +13,7 @@ import {
   Shield,
   Check,
   UserCheck,
+  Menu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -24,9 +25,16 @@ interface TopBarProps {
   onSearchChange: (query: string) => void;
   searchQuery: string;
   onResetData: () => void;
+  onToggleMobileMenu?: () => void;
 }
 
-export function TopBar({ onQuickAction, onSearchChange, searchQuery, onResetData }: TopBarProps) {
+export function TopBar({
+  onQuickAction,
+  onSearchChange,
+  searchQuery,
+  onResetData,
+  onToggleMobileMenu,
+}: TopBarProps) {
   const { user, availableUsers, switchUser, permissions, organization } = useAuth();
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -45,17 +53,29 @@ export function TopBar({ onQuickAction, onSearchChange, searchQuery, onResetData
   };
 
   return (
-    <header className="h-16 border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-      {/* Search Input */}
-      <div className="relative w-72 sm:w-80 max-w-md">
-        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Global search (invoices, clients, quotes)..."
-          className="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all"
-        />
+    <header className="h-16 border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+      {/* Left section: Hamburger button + Search Input */}
+      <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+        {onToggleMobileMenu && (
+          <button
+            type="button"
+            onClick={onToggleMobileMenu}
+            className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+            aria-label="Open Navigation Menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+        <div className="relative w-full max-w-[200px] sm:max-w-xs md:w-80">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Global search..."
+            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all"
+          />
+        </div>
       </div>
 
       {/* Right controls */}
@@ -88,17 +108,17 @@ export function TopBar({ onQuickAction, onSearchChange, searchQuery, onResetData
             variant="emerald"
             size="sm"
             onClick={() => setQuickActionOpen(!quickActionOpen)}
-            className="flex items-center gap-1.5 shadow-xs font-semibold text-xs"
+            className="flex items-center gap-1 sm:gap-1.5 shadow-xs font-semibold text-xs px-2 sm:px-3"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Create</span>
+            <span className="hidden sm:inline">Create</span>
             <ChevronDown className="h-3 w-3 opacity-80" />
           </Button>
 
           {quickActionOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setQuickActionOpen(false)} />
-              <div className="absolute right-0 mt-2 w-52 rounded-xl bg-white shadow-xl border border-slate-200 py-1.5 z-50 text-xs animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-52 max-w-[calc(100vw-2rem)] rounded-xl bg-white shadow-xl border border-slate-200 py-1.5 z-50 text-xs animate-in fade-in zoom-in-95">
                 {permissions.canCreateInvoice && (
                   <button
                     onClick={() => {
@@ -199,7 +219,7 @@ export function TopBar({ onQuickAction, onSearchChange, searchQuery, onResetData
           {userMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl bg-white shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95">
                 <div className="px-3 py-2 border-b border-slate-100">
                   <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                     Active Session & Role

@@ -275,8 +275,8 @@ export function QuoteDetailModal({
         </div>
 
         {/* Line Items Table */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
-          <table className="w-full text-left">
+        <div className="border border-slate-200 rounded-xl overflow-x-auto">
+          <table className="w-full text-left text-xs min-w-[700px]">
             <thead className="bg-slate-50 text-slate-500 text-[11px] border-b border-slate-200">
               <tr>
                 <th className="p-2.5 font-medium">#</th>

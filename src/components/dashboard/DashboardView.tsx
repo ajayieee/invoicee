@@ -73,8 +73,8 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-6 sm:p-8 shadow-sm border border-slate-800 relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-800 relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30">
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -583,7 +583,7 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
       </div>
 
       {/* Quick Operations Shortcuts */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {permissions.canCreateInvoice && (
           <button
             onClick={() => onQuickAction('NEW_INVOICE')}
@@ -695,7 +695,7 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[540px]">
                   <thead className="bg-slate-50 text-slate-500 border-y border-slate-200/80">
                     <tr>
                       <th className="px-4 py-2 font-medium">Invoice #</th>
@@ -760,7 +760,7 @@ export function DashboardView({ onNavigate, onQuickAction }: DashboardViewProps)
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left min-w-[540px]">
                   <thead className="bg-slate-50 text-slate-500 border-y border-slate-200/80">
                     <tr>
                       <th className="px-4 py-2 font-medium">Quote #</th>

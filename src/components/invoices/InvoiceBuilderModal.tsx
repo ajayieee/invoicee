@@ -341,16 +341,16 @@ export function InvoiceBuilderModal({
       onOpenChange={onOpenChange}
       title={initialInvoiceId ? 'Edit Draft Tax Invoice' : 'Create New UAE Tax Invoice'}
       description="UAE FTA-compliant VAT invoice with sequential numbering, customer snapshot, and audit controls."
-      maxWidth="4xl"
+      maxWidth="5xl"
       footer={
-        <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4">
-          <div className="flex items-center gap-3 text-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full gap-3 sm:gap-4">
+          <div className="flex items-center justify-between sm:justify-start gap-3 text-xs">
             <span className="text-slate-500">Payable Total:</span>
             <span className="text-base font-bold font-mono text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
               {formatCurrency(totals.grand_total)}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
             <Button variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -566,7 +566,7 @@ export function InvoiceBuilderModal({
           </div>
 
           <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-xs">
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-xs text-left min-w-[950px]">
               <thead className="bg-slate-900 text-white font-medium">
                 <tr>
                   <th className="px-3 py-2.5 w-10">#</th>

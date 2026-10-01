@@ -264,8 +264,8 @@ export function CreditNoteDetailModal({
           <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
             Credited Items Breakdown
           </h4>
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-            <table className="w-full text-xs text-left">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-xs">
+            <table className="w-full text-xs text-left min-w-[650px]">
               <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
                 <tr>
                   <th className="p-2.5">#</th>

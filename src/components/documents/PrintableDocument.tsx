@@ -148,12 +148,12 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
   return (
     <div className="space-y-6">
       {/* Top Action Bar (Hidden when printing) */}
-      <div className="no-print flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+      <div className="no-print flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs">
         <Button variant="outline" size="sm" onClick={onBack} className="text-slate-700">
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Back to Dashboard
         </Button>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 mr-2">
+        <div className="flex items-center justify-end gap-2">
+          <span className="hidden sm:inline text-xs text-slate-500 mr-2">
             A4 UAE FTA Format • Full & Simplified Compliant
           </span>
           <Button variant="emerald" size="sm" onClick={() => window.print()} className="font-semibold shadow-xs">
@@ -163,7 +163,7 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
       </div>
 
       {/* A4 Document Printable Canvas */}
-      <div className="print-container bg-white border border-slate-200 shadow-lg rounded-2xl p-8 sm:p-12 max-w-4xl mx-auto text-slate-900 font-sans relative">
+      <div className="print-container bg-white border border-slate-200 shadow-lg rounded-2xl p-4 sm:p-8 md:p-12 max-w-4xl mx-auto text-slate-900 font-sans relative">
         {/* Draft Non-Tax Document Watermark Alert */}
         {isDraft && (
           <div className="mb-6 p-4 rounded-xl bg-amber-50 border-2 border-dashed border-amber-400 text-amber-950 flex items-center gap-3">
@@ -180,7 +180,7 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
         )}
 
         {/* Header: Company & Title */}
-        <div className="flex items-start justify-between border-b-2 border-slate-900 pb-6">
+        <div className="flex flex-col sm:flex-row items-start justify-between border-b-2 border-slate-900 pb-6 gap-4 sm:gap-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2.5">
               <div className="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
@@ -206,7 +206,7 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
             </div>
           </div>
 
-          <div className="text-right space-y-2">
+          <div className="text-left sm:text-right space-y-2 w-full sm:w-auto">
             <div className={`inline-block px-4 py-1.5 rounded-lg text-sm font-bold tracking-wide uppercase ${
               isDraft ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-900 text-white'
             }`}>
@@ -294,8 +294,8 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
 
         {/* Content Table */}
         {docType !== 'STATEMENT' ? (
-          <div className="my-6 border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-xs text-left">
+          <div className="my-6 border border-slate-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-xs text-left min-w-[720px]">
               <thead className="bg-slate-900 text-white font-semibold">
                 <tr>
                   <th className="p-2.5">#<br/><span className="text-[10px] font-normal text-slate-300">م</span></th>
@@ -357,8 +357,8 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
           </div>
         ) : (
           /* Statement of Account Ledger Table */
-          <div className="my-6 border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-xs text-left">
+          <div className="my-6 border border-slate-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-xs text-left min-w-[650px]">
               <thead className="bg-slate-900 text-white font-semibold">
                 <tr>
                   <th className="p-3">Date / التاريخ</th>

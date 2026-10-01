@@ -150,7 +150,7 @@ export function CreditNotesView({ onViewInvoice, onPrintDocument }: CreditNotesV
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-xs text-left min-w-[1050px]">
               <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
                 <tr>
                   <th className="px-3.5 py-3">Credit Note #</th>
