@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = login;
 exports.register = register;
 exports.getMe = getMe;
+exports.getUsers = getUsers;
+exports.updateUserRole = updateUserRole;
 exports.getSetupStatus = getSetupStatus;
 exports.setupInitialAdmin = setupInitialAdmin;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
@@ -108,6 +110,81 @@ async function getMe(req, res) {
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message || 'Failed to fetch user.' });
+    }
+}
+async function getUsers(req, res) {
+    try {
+        const orgId = req.user?.organizationId || 'org_pixelflames_001';
+        const users = await User_js_1.User.find({ organizationId: orgId, isActive: true })
+            .select('-passwordHash')
+            .sort({ createdAt: 1 });
+        res.json({ success: true, data: users });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Failed to fetch users.' });
+    }
+}
+async function updateUserRole(req, res) {
+    try {
+        const { id } = req.params;
+        const { role, title } = req.body;
+        const VALID_ROLES = ['OWNER', 'ACCOUNTANT', 'SALES', 'VIEWER'];
+        if (!role || !VALID_ROLES.includes(role)) {
+            res.status(400).json({
+                success: false,
+                error: `Invalid role specified. Valid roles are: ${VALID_ROLES.join(', ')}.`,
+            });
+            return;
+        }
+        const targetUser = await User_js_1.User.findById(id);
+        if (!targetUser) {
+            res.status(404).json({ success: false, error: 'User not found.' });
+            return;
+        }
+        // Strict protection: An administrator cannot modify their own role
+        if (req.user?.userId === id || req.user?.userId === targetUser._id.toString()) {
+            res.status(403).json({
+                success: false,
+                error: 'Administrators cannot modify their own role. Your administrator account is protected.',
+            });
+            return;
+        }
+        // Safety check: Prevent sole OWNER from demoting themselves
+        if (targetUser.role === 'OWNER' && role !== 'OWNER') {
+            const ownerCount = await User_js_1.User.countDocuments({
+                organizationId: targetUser.organizationId,
+                role: 'OWNER',
+                isActive: true,
+            });
+            if (ownerCount <= 1) {
+                res.status(400).json({
+                    success: false,
+                    error: 'Cannot demote the only administrator. Assign another administrator before changing this role.',
+                });
+                return;
+            }
+        }
+        targetUser.role = role;
+        if (title && typeof title === 'string') {
+            targetUser.title = title.trim();
+        }
+        await targetUser.save();
+        res.json({
+            success: true,
+            message: `User role successfully updated to ${role}.`,
+            data: {
+                id: targetUser._id,
+                name: targetUser.name,
+                email: targetUser.email,
+                role: targetUser.role,
+                title: targetUser.title,
+                avatarColor: targetUser.avatarColor,
+                isActive: targetUser.isActive,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Failed to update user role.' });
     }
 }
 async function getSetupStatus(req, res) {

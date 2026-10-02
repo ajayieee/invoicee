@@ -10,15 +10,18 @@ import {
   Receipt,
   CreditCard,
   UserPlus,
-  Shield,
-  Check,
-  UserCheck,
   Menu,
+  LogOut,
+  Users,
+  Shield,
+  Edit3,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { useAuth } from '@/context/AuthContext';
-import { UserRole } from '@/types/auth';
+import { User } from '@/types/auth';
+import { InviteMemberModal } from '@/components/auth/InviteMemberModal';
+import { ChangeRoleModal } from '@/components/auth/ChangeRoleModal';
 
 interface TopBarProps {
   onQuickAction: (action: 'NEW_QUOTE' | 'NEW_INVOICE' | 'RECORD_PAYMENT' | 'NEW_CUSTOMER') => void;
@@ -35,22 +38,14 @@ export function TopBar({
   onResetData,
   onToggleMobileMenu,
 }: TopBarProps) {
-  const { user, availableUsers, switchUser, permissions, organization } = useAuth();
+  const { user, availableUsers, permissions, organization, logout, inviteMember, updateUserRole, refreshUsers } = useAuth();
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
 
-  const getRoleBadgeVariant = (role: UserRole) => {
-    switch (role) {
-      case 'OWNER':
-        return 'emerald';
-      case 'ACCOUNTANT':
-        return 'info';
-      case 'SALES':
-        return 'purple';
-      default:
-        return 'secondary';
-    }
-  };
+  if (!user) return null;
 
   return (
     <header className="h-16 border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
@@ -215,18 +210,19 @@ export function TopBar({
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </button>
 
-          {/* User & Role Switcher Dropdown */}
+          {/* User & Role Dropdown */}
           {userMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl bg-white shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95">
-                <div className="px-3 py-2 border-b border-slate-100">
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-white shadow-xl border border-slate-200 p-2.5 z-50 text-xs animate-in fade-in zoom-in-95">
+                {/* Active Session Card */}
+                <div className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100">
                   <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                    Active Session & Role
+                    Active Session
                   </div>
-                  <div className="font-semibold text-slate-900 mt-1">{user.name}</div>
-                  <div className="text-[11px] text-slate-500">{user.email}</div>
-                  <div className="mt-2 flex items-center gap-1.5">
+                  <div className="font-semibold text-slate-900 mt-0.5 text-sm">{user.name}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">{user.email}</div>
+                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                       {user.role}
                     </span>
@@ -239,52 +235,142 @@ export function TopBar({
                   </div>
                 </div>
 
-                <div className="py-1">
-                  <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Switch User / Test Role Matrix
-                  </div>
-                  {availableUsers.map((u) => {
-                    const isSelected = u.id === user.id;
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          switchUser(u.id);
-                          setUserMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all text-left cursor-pointer ${
-                          isSelected ? 'bg-slate-100 font-semibold text-slate-900' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className={`h-7 w-7 rounded-full ${u.avatar_color} text-white font-semibold flex items-center justify-center text-[10px] shrink-0`}
-                          >
-                            {u.name
-                              .split(' ')
-                              .map((n) => n[0])
-                              .join('')}
-                          </div>
-                          <div>
-                            <div className="text-xs text-slate-900 flex items-center gap-1.5">
-                              <span>{u.name}</span>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200/60 font-mono text-slate-700">
-                                {u.role}
-                              </span>
+                {/* Company Team & Roles List (Available to OWNER / ADMIN) */}
+                {(user.role === 'OWNER' || user.role === 'ADMIN') && (
+                  <div className="mt-2.5">
+                    <div className="px-2 pt-1 pb-1 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Company Team Members ({availableUsers.length})</span>
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-medium">Manage Roles</span>
+                    </div>
+
+                    <div className="max-h-52 overflow-y-auto px-1 space-y-1.5 mt-1">
+                      {availableUsers.map((u) => (
+                        <div
+                          key={u.id}
+                          className="flex items-center justify-between p-2 rounded-xl bg-white hover:bg-slate-50 transition-colors border border-slate-200/70"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <div
+                              className={`h-7 w-7 rounded-full ${u.avatar_color} text-white font-bold flex items-center justify-center text-[10px] shrink-0`}
+                            >
+                              {u.name
+                                .split(' ')
+                                .map((n) => n[0])
+                                .join('')}
                             </div>
-                            <div className="text-[10px] text-slate-400">{u.title}</div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                                <span className="truncate">{u.name}</span>
+                                {u.id === user.id && (
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-normal">
+                                    You
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono truncate">{u.email}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded border uppercase ${
+                                u.role === 'OWNER'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : u.role === 'ACCOUNTANT'
+                                  ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                  : u.role === 'SALES'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              {u.role}
+                            </span>
+                            {u.id !== user.id ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedUserForRole(u);
+                                  setRoleModalOpen(true);
+                                  setUserMenuOpen(false);
+                                }}
+                                className="text-[10px] text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 font-medium px-1.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                title={`Change role for ${u.name}`}
+                              >
+                                <Shield className="h-3 w-3 text-slate-400 hover:text-emerald-600" />
+                                <span>Role</span>
+                              </button>
+                            ) : (
+                              <span
+                                className="text-[10px] text-slate-400 font-medium px-2 py-1 rounded-lg bg-slate-100/80 border border-slate-200 flex items-center gap-1 cursor-default select-none"
+                                title="Your administrator role is permanently protected"
+                              >
+                                <Lock className="h-3 w-3 text-slate-400" />
+                                <span>Locked</span>
+                              </span>
+                            )}
                           </div>
                         </div>
-                        {isSelected && <Check className="h-4 w-4 text-emerald-600 shrink-0" />}
-                      </button>
-                    );
-                  })}
+                      ))}
+                      {availableUsers.length === 0 && (
+                        <div className="p-3 text-center text-slate-400 text-xs">
+                          No team members registered yet.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 my-2" />
+
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setInviteModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                    >
+                      <UserPlus className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span>Invite New Team Member</span>
+                    </button>
+
+                    <div className="border-t border-slate-100 my-1" />
+                  </div>
+                )}
+
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4 text-rose-500 shrink-0" />
+                    <span>Sign Out</span>
+                  </button>
                 </div>
               </div>
             </>
           )}
         </div>
       </div>
+
+      <InviteMemberModal
+        open={inviteModalOpen}
+        onOpenChange={setInviteModalOpen}
+        onInvite={inviteMember}
+        onSuccess={refreshUsers}
+      />
+
+      <ChangeRoleModal
+        open={roleModalOpen}
+        onOpenChange={setRoleModalOpen}
+        targetUser={selectedUserForRole}
+        onUpdateRole={updateUserRole}
+        onSuccess={refreshUsers}
+      />
     </header>
   );
 }

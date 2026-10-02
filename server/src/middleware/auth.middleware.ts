@@ -30,7 +30,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
 
   const token = authHeader.split(' ')[1];
-  const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_althuraya_2026_finance';
+  const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_pixelflames_2026_finance';
 
   try {
     const decoded = jwt.verify(token, secret) as AuthUserPayload;

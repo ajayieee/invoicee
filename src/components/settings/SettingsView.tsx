@@ -11,6 +11,10 @@ import {
   Check,
   AlertCircle,
   Lock,
+  Users,
+  UserPlus,
+  Shield,
+  Edit3,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -20,13 +24,20 @@ import { FormError, AlertBanner } from '@/components/ui/FormError';
 import { CompanySettings, UAEEmirate } from '@/types/database';
 import { companyService } from '@/services/company.service';
 import { useAuth } from '@/context/AuthContext';
+import { User, UserRole } from '@/types/auth';
 import { formatDate } from '@/lib/utils';
+import { InviteMemberModal } from '@/components/auth/InviteMemberModal';
+import { ChangeRoleModal } from '@/components/auth/ChangeRoleModal';
 
 export function SettingsView() {
-  const { user, permissions, refreshOrgContext } = useAuth();
+  const { user, permissions, refreshOrgContext, availableUsers, inviteMember, updateUserRole, refreshUsers } = useAuth();
   const [settings, setSettings] = useState<CompanySettings>(companyService.getSettings());
   const auditLogs = companyService.getAuditTrail().slice(0, 25);
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'VAT' | 'NUMBERING' | 'BANK' | 'AUDIT'>('PROFILE');
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'VAT' | 'NUMBERING' | 'BANK' | 'USERS' | 'AUDIT'>('PROFILE');
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -189,6 +200,7 @@ export function SettingsView() {
           { id: 'BANK' as const, label: 'Bank Coordinates', icon: CreditCard },
           { id: 'VAT' as const, label: 'VAT Configuration Layer', icon: ShieldCheck },
           { id: 'NUMBERING' as const, label: 'Document Numbering', icon: FileCode },
+          ...(canEdit ? [{ id: 'USERS' as const, label: 'Team & User Management', icon: Users }] : []),
           { id: 'AUDIT' as const, label: 'System Audit Trail', icon: History },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -580,6 +592,163 @@ export function SettingsView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Tab: Team & User Management */}
+      {activeTab === 'USERS' && canEdit && (
+        <Card>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-sm font-bold text-slate-900">Company Team Members & Access Roles</CardTitle>
+              <CardDescription>
+                Live roster of registered company users and their assigned role-based permissions in MongoDB Atlas.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              onClick={() => setInviteModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Invite Team Member</span>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Member Name</th>
+                    <th className="py-3 px-4">Work Email</th>
+                    <th className="py-3 px-4">Job Title</th>
+                    <th className="py-3 px-4">Assigned Role</th>
+                    <th className="py-3 px-4">Access Scope</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {availableUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-semibold text-slate-900 flex items-center gap-2.5">
+                        <div
+                          className={`h-7 w-7 rounded-full ${u.avatar_color} text-white font-bold flex items-center justify-center text-[10px] shrink-0`}
+                        >
+                          {u.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')}
+                        </div>
+                        <span>{u.name}</span>
+                        {u.id === user.id && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                            You
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">{u.email}</td>
+                      <td className="py-3 px-4 text-slate-600">{u.title}</td>
+                      <td className="py-3 px-4">
+                        {u.id === user.id ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-xs select-none">
+                            <Lock className="h-3 w-3 text-emerald-600" />
+                            <span>{u.role}</span>
+                            <span className="text-[10px] text-emerald-600 font-normal">(Protected)</span>
+                          </div>
+                        ) : (
+                          <select
+                            value={u.role}
+                            disabled={updatingUserId === u.id}
+                            onChange={async (e) => {
+                              const newRole = e.target.value as UserRole;
+                              if (newRole === u.role) return;
+                              setUpdatingUserId(u.id);
+                              const res = await updateUserRole(u.id, newRole);
+                              setUpdatingUserId(null);
+                              if (!res.success) {
+                                setFeedback({ type: 'error', message: res.error || 'Failed to update user role.' });
+                              } else {
+                                setFeedback({ type: 'success', message: `Updated ${u.name}'s assigned role to ${newRole}.` });
+                              }
+                            }}
+                            className="text-xs font-semibold rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                          >
+                            <option value="ACCOUNTANT">ACCOUNTANT</option>
+                            <option value="SALES">SALES</option>
+                            <option value="VIEWER">VIEWER</option>
+                            <option value="OWNER">OWNER</option>
+                          </select>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 text-[11px]">
+                        {u.role === 'OWNER' && 'Full Administrative Control & Legal Settings'}
+                        {u.role === 'ACCOUNTANT' && 'Invoicing, Payments, Credit Notes & VAT Reporting'}
+                        {u.role === 'SALES' && 'Quotations, Customer CRM & Invoicing'}
+                        {u.role === 'VIEWER' && 'Read-Only Audit Access'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          Active
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {u.id !== user.id ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUserForRole(u);
+                              setRoleModalOpen(true);
+                            }}
+                            className="text-[11px] h-7 px-2.5 inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Shield className="h-3 w-3 text-slate-500" />
+                            <span>Edit Role</span>
+                          </Button>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg cursor-default select-none"
+                            title="Administrator cannot modify their own role"
+                          >
+                            <Lock className="h-3 w-3 text-slate-400" />
+                            <span>Protected</span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {availableUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400">
+                        No team members registered yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <InviteMemberModal
+        open={inviteModalOpen}
+        onOpenChange={setInviteModalOpen}
+        onInvite={inviteMember}
+        onSuccess={refreshUsers}
+      />
+
+      <ChangeRoleModal
+        open={roleModalOpen}
+        onOpenChange={setRoleModalOpen}
+        targetUser={selectedUserForRole}
+        onUpdateRole={updateUserRole}
+        onSuccess={() => {
+          refreshUsers();
+          setFeedback({ type: 'success', message: 'Team member role updated successfully in MongoDB Atlas.' });
+        }}
+      />
     </div>
   );
 }

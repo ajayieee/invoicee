@@ -16,7 +16,7 @@ function authenticate(req, res, next) {
         return;
     }
     const token = authHeader.split(' ')[1];
-    const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_althuraya_2026_finance';
+    const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_pixelflames_2026_finance';
     try {
         const decoded = jsonwebtoken_1.default.verify(token, secret);
         req.user = decoded;

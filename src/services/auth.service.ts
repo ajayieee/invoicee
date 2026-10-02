@@ -34,18 +34,6 @@ class AuthService {
     return user || SYSTEM_USERS[0];
   }
 
-  switchUser(userId: string): User {
-    const target = SYSTEM_USERS.find((u) => u.id === userId);
-    if (!target) {
-      throw new Error(`User with ID ${userId} not found.`);
-    }
-    this.currentUserId = target.id;
-    if (this.isBrowser) {
-      localStorage.setItem(AUTH_USER_KEY, target.id);
-    }
-    return target;
-  }
-
   getAvailableUsers(): User[] {
     return [...SYSTEM_USERS];
   }

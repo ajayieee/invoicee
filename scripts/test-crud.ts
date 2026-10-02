@@ -36,36 +36,29 @@ async function runTestSuite() {
   assert(authService.hasPermission('canEditCompanySettings'), 'OWNER has canEditCompanySettings');
   assert(authService.hasPermission('canCreateInvoice'), 'OWNER has canCreateInvoice');
 
-  // Switch to SALES
-  const salesUser = SYSTEM_USERS.find((u) => u.role === 'SALES')!;
-  authService.switchUser(salesUser.id);
+  // Check SALES role permissions
   assert(
-    !authService.hasPermission('canEditCompanySettings'),
+    !authService.hasPermission('canEditCompanySettings', 'SALES'),
     'SALES user cannot edit company settings'
   );
   assert(
-    !authService.hasPermission('canRecordPayment'),
+    !authService.hasPermission('canRecordPayment', 'SALES'),
     'SALES user cannot record payments'
   );
   assert(
-    authService.hasPermission('canApproveQuote'),
+    authService.hasPermission('canApproveQuote', 'SALES'),
     'SALES user can approve quotes'
   );
 
-  // Switch to ACCOUNTANT
-  const acctUser = SYSTEM_USERS.find((u) => u.role === 'ACCOUNTANT')!;
-  authService.switchUser(acctUser.id);
+  // Check ACCOUNTANT role permissions
   assert(
-    authService.hasPermission('canRecordPayment'),
+    authService.hasPermission('canRecordPayment', 'ACCOUNTANT'),
     'ACCOUNTANT can record payments'
   );
   assert(
-    authService.hasPermission('canIssueCreditNote'),
+    authService.hasPermission('canIssueCreditNote', 'ACCOUNTANT'),
     'ACCOUNTANT can issue credit notes'
   );
-
-  // Switch back to OWNER
-  authService.switchUser(currentUser.id);
 
   // -------------------------------------------------------------
   // TEST SUITE 2: COMPANY SETTINGS & STRICT UAE VALIDATION

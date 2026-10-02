@@ -18,6 +18,7 @@ import { InvoiceBuilderModal } from '@/components/invoices/InvoiceBuilderModal';
 import { RecordPaymentModal } from '@/components/payments/RecordPaymentModal';
 import { CreateCreditNoteModal } from '@/components/credit-notes/CreateCreditNoteModal';
 import { InitialAdminSetupModal } from '@/components/auth/InitialAdminSetupModal';
+import { LoginPage } from '@/components/auth/LoginPage';
 import { Invoice } from '@/types/database';
 import { db } from '@/lib/db/repository';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -258,6 +259,30 @@ function AppHomeContent() {
   );
 }
 
+function AppAuthGate() {
+  const { isAuthenticated, isLoading, login } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent shadow-lg shadow-emerald-500/20" />
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-white tracking-wide">Pixelflames</h3>
+            <p className="text-xs text-slate-400">Verifying secure session...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={login} />;
+  }
+
+  return <AppHomeContent />;
+}
+
 export default function AppHome() {
   const [mounted, setMounted] = useState(false);
 
@@ -281,7 +306,7 @@ export default function AppHome() {
 
   return (
     <AuthProvider>
-      <AppHomeContent />
+      <AppAuthGate />
     </AuthProvider>
   );
 }
