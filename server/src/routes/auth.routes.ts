@@ -5,6 +5,9 @@ import {
   getMe,
   getUsers,
   updateUserRole,
+  updateUserDetails,
+  deleteUser,
+  changePassword,
   getSetupStatus,
   setupInitialAdmin,
 } from '../controllers/auth.controller.js';
@@ -19,5 +22,8 @@ router.post('/register', authenticate, authorizeRoles('OWNER'), register);
 router.get('/me', authenticate, getMe);
 router.get('/users', authenticate, getUsers);
 router.patch('/users/:id/role', authenticate, authorizeRoles('OWNER'), updateUserRole);
+router.put('/users/:id', authenticate, authorizeRoles('OWNER'), updateUserDetails);
+router.delete('/users/:id', authenticate, authorizeRoles('OWNER'), deleteUser);
+router.post('/change-password', authenticate, changePassword);
 
 export default router;

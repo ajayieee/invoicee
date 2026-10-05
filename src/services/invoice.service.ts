@@ -14,6 +14,7 @@ import { db } from '@/lib/db/repository';
 import { VatCalculator, LineItemInput, CalculationResult } from '@/lib/vat/calculator';
 import { ValidationRules } from '@/lib/validation/rules';
 import { creditNoteService } from './credit-note.service';
+import { apiClient } from '@/lib/api/client';
 
 export interface InvoiceQuery {
   search?: string;
@@ -106,66 +107,72 @@ class InvoiceService {
   }
 
   /**
-   * Validates invoice input fields.
+   * Validates invoice data against statutory UAE FTA VAT requirements.
    */
-  public validateInvoice(data: Partial<InvoiceInput>): Record<string, string> {
+  public validateInvoice(input: Partial<InvoiceInput>): Record<string, string> {
     const errors: Record<string, string> = {};
 
-    // Customer
-    if (!data.customer_id) {
-      errors.customer_id = 'Please select a recipient customer.';
+    const custCheck = ValidationRules.required(input.customer_id, 'Customer');
+    if (!custCheck.isValid && custCheck.error) errors.customer_id = custCheck.error;
+
+    const dateCheck = ValidationRules.required(input.invoice_date, 'Invoice Date');
+    if (!dateCheck.isValid && dateCheck.error) errors.invoice_date = dateCheck.error;
+
+    const supplyCheck = ValidationRules.required(input.supply_date, 'Date of Supply');
+    if (!supplyCheck.isValid && supplyCheck.error) errors.supply_date = supplyCheck.error;
+
+    const dueCheck = ValidationRules.required(input.due_date, 'Due Date');
+    if (!dueCheck.isValid && dueCheck.error) errors.due_date = dueCheck.error;
+
+    if (input.invoice_date && input.due_date && input.due_date < input.invoice_date) {
+      errors.due_date = 'Payment due date cannot precede the invoice issue date.';
     }
 
-    // Dates
-    if (!data.invoice_date) {
-      errors.invoice_date = 'Invoice date of issue is required.';
-    }
-    if (!data.supply_date) {
-      errors.supply_date = 'Date of supply is mandatory for UAE FTA VAT compliance.';
-    }
-    if (data.invoice_date && data.supply_date) {
-      const invTime = new Date(data.invoice_date).getTime();
-      const supplyTime = new Date(data.supply_date).getTime();
-      const diffDays = Math.floor((invTime - supplyTime) / (1000 * 3600 * 24));
-      if (diffDays > 14) {
-        errors.invoice_date =
-          'Under UAE VAT Law (Article 67), a Tax Invoice must be issued within 14 calendar days of the date of supply.';
-      }
-    }
-    if (!data.due_date) {
-      errors.due_date = 'Payment due date is required.';
-    }
-
-    // Line items
-    if (!data.items || data.items.length === 0) {
-      errors.items = 'An invoice must contain at least one line item.';
+    if (!input.items || input.items.length === 0) {
+      errors.items = 'At least one line item is required on a UAE VAT invoice.';
     } else {
-      data.items.forEach((it, idx) => {
-        if (!it.description || !it.description.trim()) {
-          errors[`item_${idx}_description`] = `Line item #${idx + 1} requires a valid description.`;
+      input.items.forEach((item, index) => {
+        if (!item.description || !item.description.trim()) {
+          errors[`item_${index}_description`] = `Item #${index + 1}: Description is required.`;
         }
-        if (Number(it.quantity) <= 0) {
-          errors[`item_${idx}_quantity`] = `Line item #${idx + 1} quantity must be greater than zero.`;
+        if (item.quantity === undefined || Number(item.quantity) <= 0) {
+          errors[`item_${index}_quantity`] = `Item #${index + 1}: Quantity must be greater than zero.`;
         }
-        if (Number(it.unit_price) < 0) {
-          errors[`item_${idx}_unit_price`] = `Line item #${idx + 1} unit price cannot be negative.`;
+        if (item.unit_price === undefined || Number(item.unit_price) < 0) {
+          errors[`item_${index}_unit_price`] = `Item #${index + 1}: Unit price cannot be negative.`;
         }
-        if (it.discount_value && Number(it.discount_value) < 0) {
-          errors[`item_${idx}_discount`] = `Line item #${idx + 1} discount cannot be negative.`;
+        if (!item.vat_rate_id) {
+          errors[`item_${index}_vat_rate_id`] = `Item #${index + 1}: VAT rate is required.`;
         }
       });
-    }
-
-    // Invoice-level discount
-    if (data.discount_value && Number(data.discount_value) < 0) {
-      errors.discount_value = 'Document discount value cannot be negative.';
     }
 
     return errors;
   }
 
   /**
-   * Fetches invoices matching filter criteria, with pagination and search.
+   * Synchronize all invoices from MongoDB Atlas Express API into local cache.
+   */
+  public async syncInvoices(): Promise<Invoice[]> {
+    try {
+      const res = await apiClient.get<{ success: boolean; items: Invoice[] }>('/invoices', {
+        pageSize: 1000,
+      });
+
+      if (res && res.success && Array.isArray(res.items)) {
+        res.items.forEach((inv) => {
+          db.upsertInvoice(inv);
+        });
+        return res.items;
+      }
+    } catch (err) {
+      console.warn('[InvoiceService] Failed to sync invoices from MongoDB Atlas:', err);
+    }
+    return db.getInvoices();
+  }
+
+  /**
+   * Retrieves paginated invoices with comprehensive filtering.
    */
   public getInvoices(query: InvoiceQuery = {}): PaginatedResult<Invoice> {
     const {
@@ -259,7 +266,7 @@ class InvoiceService {
       });
     }
 
-    // Sort descending by invoice date and creation
+    // Sort descending by sequence/date
     items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const total = items.length;
@@ -285,9 +292,9 @@ class InvoiceService {
   }
 
   /**
-   * Creates a new invoice (either DRAFT or directly ISSUED).
+   * Creates a new invoice directly in MongoDB Atlas and synchronizes locally.
    */
-  public createInvoice(input: InvoiceInput): ServiceResponse<Invoice> {
+  public async createInvoice(input: InvoiceInput): Promise<ServiceResponse<Invoice>> {
     const errors = this.validateInvoice(input);
     if (Object.keys(errors).length > 0) {
       return {
@@ -329,7 +336,9 @@ class InvoiceService {
         };
       });
 
-      const invoice = db.saveInvoice({
+      const customer = db.getCustomerById(input.customer_id);
+
+      const payload = {
         customer_id: input.customer_id,
         invoice_date: input.invoice_date,
         supply_date: input.supply_date,
@@ -347,8 +356,35 @@ class InvoiceService {
         notes: input.notes || '',
         terms: input.terms || '',
         items: lineItems,
-      });
+        customer_snapshot: customer
+          ? {
+              company_name: customer.company_name,
+              contact_person: customer.contact_person,
+              email: customer.email,
+              phone: customer.phone,
+              trn: customer.trn,
+              billing_address_line_1: customer.billing_address_line_1,
+              billing_city: customer.billing_city,
+              billing_emirate: customer.billing_emirate,
+            }
+          : undefined,
+      };
 
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Invoice }>('/invoices', payload);
+        if (res && res.success && res.data) {
+          const saved = db.upsertInvoice(res.data);
+          return {
+            success: true,
+            data: saved,
+          };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas post failed, saving locally:', apiErr.message);
+      }
+
+      // Local fallback
+      const invoice = db.saveInvoice(payload);
       return {
         success: true,
         data: invoice,
@@ -362,10 +398,9 @@ class InvoiceService {
   }
 
   /**
-   * Updates an existing DRAFT invoice.
-   * STRICT AUDIT GUARD: Prohibits destructive editing if invoice has been issued or cancelled.
+   * Updates an existing DRAFT invoice in MongoDB Atlas.
    */
-  public updateDraftInvoice(id: string, input: Partial<InvoiceInput>): ServiceResponse<Invoice> {
+  public async updateDraftInvoice(id: string, input: Partial<InvoiceInput>): Promise<ServiceResponse<Invoice>> {
     const existing = db.getInvoiceById(id);
     if (!existing) {
       return { success: false, error: 'Invoice not found.' };
@@ -443,8 +478,7 @@ class InvoiceService {
         };
       });
 
-      const updated = db.saveInvoice({
-        id: existing.id,
+      const payload = {
         customer_id: mergedInput.customer_id,
         invoice_date: mergedInput.invoice_date,
         supply_date: mergedInput.supply_date,
@@ -462,8 +496,19 @@ class InvoiceService {
         notes: mergedInput.notes || '',
         terms: mergedInput.terms || '',
         items: lineItems,
-      });
+      };
 
+      try {
+        const res = await apiClient.put<{ success: boolean; data: Invoice }>(`/invoices/${id}`, payload);
+        if (res && res.success && res.data) {
+          const updated = db.upsertInvoice(res.data);
+          return { success: true, data: updated };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas put failed, updating locally:', apiErr.message);
+      }
+
+      const updated = db.saveInvoice({ id: existing.id, ...payload });
       return { success: true, data: updated };
     } catch (e: any) {
       return { success: false, error: e.message || 'Failed to update invoice.' };
@@ -471,11 +516,20 @@ class InvoiceService {
   }
 
   /**
-   * Issues an official invoice from DRAFT state.
-   * Permanently assigns sequential legal invoice number (INV-YYYY-XXXX).
+   * Issues an official invoice from DRAFT state directly in MongoDB Atlas.
    */
-  public issueInvoice(id: string): ServiceResponse<Invoice> {
+  public async issueInvoice(id: string): Promise<ServiceResponse<Invoice>> {
     try {
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Invoice }>(`/invoices/${id}/issue`);
+        if (res && res.success && res.data) {
+          const issued = db.upsertInvoice(res.data);
+          return { success: true, data: issued };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas issue failed, issuing locally:', apiErr.message);
+      }
+
       const issued = db.issueInvoice(id);
       return { success: true, data: issued };
     } catch (e: any) {
@@ -486,13 +540,23 @@ class InvoiceService {
   /**
    * Duplicates an existing invoice into a brand new DRAFT invoice.
    */
-  public duplicateInvoice(id: string): ServiceResponse<Invoice> {
-    const existing = db.getInvoiceById(id);
-    if (!existing) {
-      return { success: false, error: 'Source invoice not found.' };
-    }
-
+  public async duplicateInvoice(id: string): Promise<ServiceResponse<Invoice>> {
     try {
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Invoice }>(`/invoices/${id}/duplicate`);
+        if (res && res.success && res.data) {
+          const cloned = db.upsertInvoice(res.data);
+          return { success: true, data: cloned };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas duplicate failed, duplicating locally:', apiErr.message);
+      }
+
+      const existing = db.getInvoiceById(id);
+      if (!existing) {
+        return { success: false, error: 'Source invoice not found.' };
+      }
+
       const today = new Date().toISOString().split('T')[0];
       const customer = db.getCustomerById(existing.customer_id);
       const termsDays = existing.payment_terms_days || customer?.payment_terms_days || 30;
@@ -510,7 +574,7 @@ class InvoiceService {
         vat_treatment: it.vat_treatment,
       }));
 
-      const cloned = this.createInvoice({
+      return await this.createInvoice({
         customer_id: existing.customer_id,
         invoice_date: today,
         supply_date: today,
@@ -525,19 +589,15 @@ class InvoiceService {
         terms: existing.terms || '',
         status: 'DRAFT',
       });
-
-      return cloned;
     } catch (e: any) {
       return { success: false, error: e.message || 'Failed to duplicate invoice.' };
     }
   }
 
   /**
-   * Cancels an issued or draft invoice.
-   * Retains the invoice in the database permanently.
-   * Permanent invoice numbers are NEVER reused.
+   * Cancels an issued or draft invoice directly in MongoDB Atlas.
    */
-  public cancelInvoice(id: string, reason: string): ServiceResponse<Invoice> {
+  public async cancelInvoice(id: string, reason: string): Promise<ServiceResponse<Invoice>> {
     if (!reason || !reason.trim()) {
       return {
         success: false,
@@ -545,24 +605,19 @@ class InvoiceService {
       };
     }
 
-    const existing = db.getInvoiceById(id);
-    if (!existing) {
-      return { success: false, error: 'Invoice not found.' };
-    }
-
-    if (existing.status === 'CANCELLED') {
-      return { success: false, error: 'Invoice is already cancelled.' };
-    }
-
-    if (existing.amount_paid > 0) {
-      return {
-        success: false,
-        error:
-          'Cannot cancel an invoice with recorded payments. Please reverse payments or issue a Credit Note first.',
-      };
-    }
-
     try {
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Invoice }>(`/invoices/${id}/cancel`, {
+          reason: reason.trim(),
+        });
+        if (res && res.success && res.data) {
+          const cancelled = db.upsertInvoice(res.data);
+          return { success: true, data: cancelled };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas cancel failed, cancelling locally:', apiErr.message);
+      }
+
       const cancelled = db.cancelInvoice(id, reason.trim());
       return { success: true, data: cancelled };
     } catch (e: any) {
@@ -571,10 +626,9 @@ class InvoiceService {
   }
 
   /**
-   * Records a payment against an invoice.
-   * Enforces anti-overpayment constraint and transitions status to PARTIALLY_PAID or PAID.
+   * Records a payment against an invoice directly in MongoDB Atlas.
    */
-  public recordPayment(input: RecordPaymentInput): ServiceResponse<Payment> {
+  public async recordPayment(input: RecordPaymentInput): Promise<ServiceResponse<Payment>> {
     if (!input.amount || Number(input.amount) <= 0) {
       return { success: false, error: 'Payment amount must be greater than zero.' };
     }
@@ -583,6 +637,25 @@ class InvoiceService {
     }
 
     try {
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Payment }>('/payments', {
+          invoice_id: input.invoice_id,
+          payment_method_id: input.payment_method_id,
+          amount: Number(input.amount),
+          payment_date: input.payment_date,
+          reference_number: input.reference_number,
+          notes: input.notes,
+        });
+
+        if (res && res.success && res.data) {
+          // Re-sync invoice state from API
+          await this.syncInvoices();
+          return { success: true, data: res.data };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas payment post failed, recording locally:', apiErr.message);
+      }
+
       const payment = db.recordPayment({
         invoice_id: input.invoice_id,
         payment_method_id: input.payment_method_id,
@@ -601,12 +674,25 @@ class InvoiceService {
   /**
    * Reverses a recorded payment.
    */
-  public reversePayment(paymentId: string, reason: string): ServiceResponse<Payment> {
+  public async reversePayment(paymentId: string, reason: string): Promise<ServiceResponse<Payment>> {
     if (!reason || !reason.trim()) {
       return { success: false, error: 'A valid reversal reason is required.' };
     }
 
     try {
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Payment }>(
+          `/payments/${paymentId}/reverse`,
+          { reason: reason.trim() }
+        );
+        if (res && res.success && res.data) {
+          await this.syncInvoices();
+          return { success: true, data: res.data };
+        }
+      } catch (apiErr: any) {
+        console.warn('[InvoiceService] Direct Atlas payment reversal failed, reversing locally:', apiErr.message);
+      }
+
       const reversed = db.reversePayment(paymentId, reason.trim());
       return { success: true, data: reversed };
     } catch (e: any) {

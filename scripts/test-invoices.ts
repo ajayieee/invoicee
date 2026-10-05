@@ -220,7 +220,7 @@ async function runInvoiceTestSuite() {
   const dueStr = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
 
   // 3.0: UAE FTA Article 67 14-day supply date rule validation
-  const invalidSupplyDateAttempt = invoiceService.createInvoice({
+  const invalidSupplyDateAttempt = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: '2026-03-25',
     supply_date: '2026-03-01', // 24 days gap > 14 days
@@ -243,7 +243,7 @@ async function runInvoiceTestSuite() {
   );
 
   // 3.1: Create Draft Invoice
-  const createDraftRes = invoiceService.createInvoice({
+  const createDraftRes = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: todayStr,
     supply_date: todayStr,
@@ -270,7 +270,7 @@ async function runInvoiceTestSuite() {
   assert(draftInvoice.balance_due === 10500, 'CREATE DRAFT: Initial balance due matches grand total');
 
   // 3.2: Edit Draft Invoice
-  const updateDraftRes = invoiceService.updateDraftInvoice(draftInvoice.id, {
+  const updateDraftRes = await invoiceService.updateDraftInvoice(draftInvoice.id, {
     items: [
       {
         description: 'Updated Enterprise Setup',
@@ -286,7 +286,7 @@ async function runInvoiceTestSuite() {
   assert(updateDraftRes.data?.grand_total === 15750, 'UPDATE DRAFT: Grand total recalculated to 15,750.00 AED');
 
   // 3.3: Issue Official Invoice (DRAFT -> ISSUED)
-  const issueRes = invoiceService.issueInvoice(draftInvoice.id);
+  const issueRes = await invoiceService.issueInvoice(draftInvoice.id);
   assert(issueRes.success, 'ISSUE: Invoice officially issued');
   const issuedInvoice = issueRes.data!;
   assert(issuedInvoice.status === 'ISSUED', 'ISSUE: Status transitioned to ISSUED');
@@ -297,7 +297,7 @@ async function runInvoiceTestSuite() {
   assert(issuedInvoice.balance_due === 15750, 'ISSUE: Balance due is set to 15,750.00 AED');
 
   // 3.4: Audit Guard: Prohibit Destructive Editing on Issued Invoice
-  const editIssuedRes = invoiceService.updateDraftInvoice(issuedInvoice.id, {
+  const editIssuedRes = await invoiceService.updateDraftInvoice(issuedInvoice.id, {
     notes: 'Illegal modification attempt',
   });
   assert(
@@ -311,7 +311,7 @@ async function runInvoiceTestSuite() {
   console.log('\n🔹 [4/6] Testing Payments (Partial, Anti-Overpayment, Full, Reversal)...');
 
   // 4.1: Record Partial Payment
-  const partialPayRes = invoiceService.recordPayment({
+  const partialPayRes = await invoiceService.recordPayment({
     invoice_id: issuedInvoice.id,
     payment_method_id: bankTransferPm.id,
     amount: 5000, // 5,000 of 15,750 AED
@@ -324,7 +324,7 @@ async function runInvoiceTestSuite() {
   assert(invAfterPartial.status === 'PARTIALLY_PAID', 'PARTIAL PAYMENT: Status transitioned to PARTIALLY_PAID');
 
   // 4.2: Anti-Overpayment Check
-  const overpayRes = invoiceService.recordPayment({
+  const overpayRes = await invoiceService.recordPayment({
     invoice_id: issuedInvoice.id,
     payment_method_id: bankTransferPm.id,
     amount: 15000, // Exceeds balance of 10,750 AED
@@ -336,7 +336,7 @@ async function runInvoiceTestSuite() {
   );
 
   // 4.3: Full Payment
-  const fullPayRes = invoiceService.recordPayment({
+  const fullPayRes = await invoiceService.recordPayment({
     invoice_id: issuedInvoice.id,
     payment_method_id: bankTransferPm.id,
     amount: 10750, // Pay exact balance
@@ -349,7 +349,7 @@ async function runInvoiceTestSuite() {
   assert(invAfterFull.status === 'PAID', 'FULL PAYMENT: Status transitioned to PAID');
 
   // 4.4: Payment Reversal
-  const reverseRes = invoiceService.reversePayment(fullPayRes.data!.id, 'Client payment bounced by bank');
+  const reverseRes = await invoiceService.reversePayment(fullPayRes.data!.id, 'Client payment bounced by bank');
   assert(reverseRes.success, 'REVERSAL: Successfully reversed final payment');
   const invAfterReverse = invoiceService.getInvoiceById(issuedInvoice.id)!;
   assert(invAfterReverse.amount_paid === 5000, 'REVERSAL: Amount paid restored to 5,000.00 AED');
@@ -362,7 +362,7 @@ async function runInvoiceTestSuite() {
   console.log('\n🔹 [5/6] Testing Credit Notes Adjustment Workflow...');
 
   // Create fresh issued invoice for credit note testing: 1 item x 4,000 + 5% VAT = 4,200 AED
-  const cnTestInvoiceRes = invoiceService.createInvoice({
+  const cnTestInvoiceRes = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: todayStr,
     supply_date: todayStr,
@@ -413,7 +413,7 @@ async function runInvoiceTestSuite() {
   console.log('\n🔹 [6/6] Testing Cancellation Safeguards, Permanent Numbers, and Duplication...');
 
   // 6.1: Cannot cancel invoice with payments recorded
-  const cancelPaidAttempt = invoiceService.cancelInvoice(
+  const cancelPaidAttempt = await invoiceService.cancelInvoice(
     issuedInvoice.id,
     'Attempt to cancel partially paid invoice'
   );
@@ -423,7 +423,7 @@ async function runInvoiceTestSuite() {
   );
 
   // 6.2: Create new unpaid issued invoice to test clean cancellation
-  const cancelTestInvRes = invoiceService.createInvoice({
+  const cancelTestInvRes = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: todayStr,
     supply_date: todayStr,
@@ -444,7 +444,7 @@ async function runInvoiceTestSuite() {
   const cancelledInvNumber = cancelTestInv.invoice_number;
 
   // 6.3: Cancel the invoice with audit reason
-  const cancelRes = invoiceService.cancelInvoice(cancelTestInv.id, 'Contract cancelled by mutual consent prior to supply');
+  const cancelRes = await invoiceService.cancelInvoice(cancelTestInv.id, 'Contract cancelled by mutual consent prior to supply');
   assert(cancelRes.success, 'CANCELLATION: Unpaid invoice successfully cancelled');
   const cancelledInv = invoiceService.getInvoiceById(cancelTestInv.id)!;
   assert(cancelledInv.status === 'CANCELLED', 'CANCELLATION: Status is CANCELLED');
@@ -453,7 +453,7 @@ async function runInvoiceTestSuite() {
   assert(cancelledInv.cancellation_reason !== undefined, 'CANCELLATION: Reason recorded');
 
   // 6.4: Number Permanence Check: Number must NOT be reused
-  const nextInvRes = invoiceService.createInvoice({
+  const nextInvRes = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: todayStr,
     supply_date: todayStr,
@@ -484,7 +484,7 @@ async function runInvoiceTestSuite() {
   );
 
   // 6.6: Duplicate Invoice
-  const duplicateRes = invoiceService.duplicateInvoice(nextInv.id);
+  const duplicateRes = await invoiceService.duplicateInvoice(nextInv.id);
   assert(duplicateRes.success, 'DUPLICATE: Clones invoice into new proposal');
   const cloned = duplicateRes.data!;
   assert(cloned.status === 'DRAFT', 'DUPLICATE: Cloned invoice resets to DRAFT status');

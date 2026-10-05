@@ -8,6 +8,9 @@ exports.register = register;
 exports.getMe = getMe;
 exports.getUsers = getUsers;
 exports.updateUserRole = updateUserRole;
+exports.updateUserDetails = updateUserDetails;
+exports.deleteUser = deleteUser;
+exports.changePassword = changePassword;
 exports.getSetupStatus = getSetupStatus;
 exports.setupInitialAdmin = setupInitialAdmin;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
@@ -185,6 +188,171 @@ async function updateUserRole(req, res) {
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message || 'Failed to update user role.' });
+    }
+}
+async function updateUserDetails(req, res) {
+    try {
+        const { id } = req.params;
+        const { name, email, role, title, password } = req.body;
+        const targetUser = await User_js_1.User.findById(id);
+        if (!targetUser) {
+            res.status(404).json({ success: false, error: 'User not found.' });
+            return;
+        }
+        const isSelf = req.user?.userId === id || req.user?.userId === targetUser._id.toString();
+        // If changing role
+        if (role && role !== targetUser.role) {
+            if (isSelf) {
+                res.status(403).json({
+                    success: false,
+                    error: 'Administrators cannot modify their own role. Your administrator account is protected.',
+                });
+                return;
+            }
+            const VALID_ROLES = ['OWNER', 'ACCOUNTANT', 'SALES', 'VIEWER'];
+            if (!VALID_ROLES.includes(role)) {
+                res.status(400).json({
+                    success: false,
+                    error: `Invalid role specified. Valid roles are: ${VALID_ROLES.join(', ')}.`,
+                });
+                return;
+            }
+            if (targetUser.role === 'OWNER' && role !== 'OWNER') {
+                const ownerCount = await User_js_1.User.countDocuments({
+                    organizationId: targetUser.organizationId,
+                    role: 'OWNER',
+                    isActive: true,
+                });
+                if (ownerCount <= 1) {
+                    res.status(400).json({
+                        success: false,
+                        error: 'Cannot demote the only administrator. Assign another administrator before changing this role.',
+                    });
+                    return;
+                }
+            }
+            targetUser.role = role;
+        }
+        if (name && typeof name === 'string' && name.trim()) {
+            targetUser.name = name.trim();
+        }
+        if (email && typeof email === 'string' && email.trim().toLowerCase() !== targetUser.email) {
+            const cleanEmail = email.trim().toLowerCase();
+            const existing = await User_js_1.User.findOne({ email: cleanEmail, _id: { $ne: targetUser._id } });
+            if (existing) {
+                res.status(400).json({ success: false, error: 'Email address is already in use by another team member.' });
+                return;
+            }
+            targetUser.email = cleanEmail;
+        }
+        if (title !== undefined && typeof title === 'string') {
+            targetUser.title = title.trim();
+        }
+        // Optional admin password reset for team member
+        if (password && typeof password === 'string' && password.trim().length > 0) {
+            if (password.trim().length < 8) {
+                res.status(400).json({ success: false, error: 'Password must be at least 8 characters long.' });
+                return;
+            }
+            const salt = await bcryptjs_1.default.genSalt(12);
+            targetUser.passwordHash = await bcryptjs_1.default.hash(password.trim(), salt);
+        }
+        await targetUser.save();
+        res.json({
+            success: true,
+            message: 'User details successfully updated.',
+            data: {
+                id: targetUser._id.toString(),
+                _id: targetUser._id.toString(),
+                name: targetUser.name,
+                email: targetUser.email,
+                role: targetUser.role,
+                title: targetUser.title,
+                avatarColor: targetUser.avatarColor,
+                isActive: targetUser.isActive,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Failed to update user details.' });
+    }
+}
+async function deleteUser(req, res) {
+    try {
+        const { id } = req.params;
+        const targetUser = await User_js_1.User.findById(id);
+        if (!targetUser) {
+            res.status(404).json({ success: false, error: 'User not found.' });
+            return;
+        }
+        // Strict protection: An administrator cannot delete their own account
+        if (req.user?.userId === id || req.user?.userId === targetUser._id.toString()) {
+            res.status(403).json({
+                success: false,
+                error: 'Administrators cannot delete their own account.',
+            });
+            return;
+        }
+        // Safety check: Prevent deleting sole OWNER
+        if (targetUser.role === 'OWNER') {
+            const ownerCount = await User_js_1.User.countDocuments({
+                organizationId: targetUser.organizationId,
+                role: 'OWNER',
+                isActive: true,
+            });
+            if (ownerCount <= 1) {
+                res.status(400).json({
+                    success: false,
+                    error: 'Cannot delete the only administrator account.',
+                });
+                return;
+            }
+        }
+        await User_js_1.User.findByIdAndDelete(id);
+        res.json({
+            success: true,
+            message: `User ${targetUser.name} (${targetUser.email}) successfully removed.`,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Failed to delete user.' });
+    }
+}
+async function changePassword(req, res) {
+    try {
+        if (!req.user?.userId) {
+            res.status(401).json({ success: false, error: 'Unauthorized.' });
+            return;
+        }
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            res.status(400).json({ success: false, error: 'Current password and new password are required.' });
+            return;
+        }
+        if (typeof newPassword !== 'string' || newPassword.length < 8) {
+            res.status(400).json({ success: false, error: 'New password must be at least 8 characters long.' });
+            return;
+        }
+        const user = await User_js_1.User.findById(req.user.userId);
+        if (!user) {
+            res.status(404).json({ success: false, error: 'User not found.' });
+            return;
+        }
+        const isMatch = await user.comparePassword(currentPassword);
+        if (!isMatch) {
+            res.status(400).json({ success: false, error: 'Incorrect current password.' });
+            return;
+        }
+        const salt = await bcryptjs_1.default.genSalt(12);
+        user.passwordHash = await bcryptjs_1.default.hash(newPassword, salt);
+        await user.save();
+        res.json({
+            success: true,
+            message: 'Password successfully changed.',
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message || 'Failed to change password.' });
     }
 }
 async function getSetupStatus(req, res) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Mail, Lock, Briefcase, Shield, AlertCircle, CheckCircle2, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
@@ -29,7 +29,7 @@ export function InviteMemberModal({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<UserRole>('ACCOUNTANT');
+  const [role, setRole] = useState<UserRole | ''>('');
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +39,19 @@ export function InviteMemberModal({
     setName('');
     setEmail('');
     setPassword('');
-    setRole('ACCOUNTANT');
+    setShowPassword(false);
+    setRole('');
     setTitle('');
     setError(null);
     setSuccess(false);
   };
+
+  // Reset all fields whenever the modal opens
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +65,10 @@ export function InviteMemberModal({
       setError('A valid work email address is required.');
       return;
     }
+    if (!role) {
+      setError('Please select an assigned role for the team member.');
+      return;
+    }
     if (!password || password.length < 8) {
       setError('Temporary password must be at least 8 characters long.');
       return;
@@ -68,7 +80,7 @@ export function InviteMemberModal({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
-        role,
+        role: role as UserRole,
         title: title.trim() || (role === 'ACCOUNTANT' ? 'Staff Accountant' : role === 'SALES' ? 'Sales Executive' : 'Team Member'),
       });
 
@@ -111,7 +123,11 @@ export function InviteMemberModal({
           </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+          {/* Hidden inputs to capture aggressive browser autofill attempts */}
+          <input type="text" style={{ display: 'none' }} tabIndex={-1} aria-hidden="true" />
+          <input type="password" style={{ display: 'none' }} tabIndex={-1} aria-hidden="true" />
+
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700">
               <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
@@ -127,6 +143,9 @@ export function InviteMemberModal({
               <User className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
+                name="new_member_name"
+                id="new_member_name"
+                autoComplete="off"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -144,6 +163,9 @@ export function InviteMemberModal({
               <Mail className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
+                name="new_member_email"
+                id="new_member_email"
+                autoComplete="new-password"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -161,10 +183,16 @@ export function InviteMemberModal({
               <div className="relative">
                 <Shield className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <select
+                  required
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  className={`w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 ${
+                    role ? 'bg-slate-50 text-slate-900' : 'bg-slate-50 text-slate-400'
+                  }`}
                 >
+                  <option value="" disabled>
+                    Select an assigned role *
+                  </option>
                   <option value="ACCOUNTANT">ACCOUNTANT (Invoices, Payments & VAT)</option>
                   <option value="SALES">SALES (Quotations & Customers CRM)</option>
                   <option value="VIEWER">VIEWER (Read-Only Auditor Access)</option>
@@ -181,6 +209,9 @@ export function InviteMemberModal({
                 <Briefcase className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
+                  name="new_member_title"
+                  id="new_member_title"
+                  autoComplete="off"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Enter Job Title"
@@ -198,6 +229,9 @@ export function InviteMemberModal({
               <Lock className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="new_member_password"
+                id="new_member_password"
+                autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

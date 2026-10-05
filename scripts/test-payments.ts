@@ -58,7 +58,7 @@ async function runPaymentTestSuite() {
   console.log('\n🔹 [2/6] Testing Multiple Payments Against One Invoice & Status Transitions...');
 
   // Create test invoice: 10,000 AED + 5% VAT = 10,500.00 AED
-  const invRes = invoiceService.createInvoice({
+  const invRes = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: todayStr,
     supply_date: todayStr,
@@ -156,7 +156,7 @@ async function runPaymentTestSuite() {
   );
 
   // 3.2: Create fresh partially paid invoice to test duplicate detection
-  const dupTestInvRes = invoiceService.createInvoice({
+  const dupTestInvRes = await invoiceService.createInvoice({
     customer_id: testCustomer.id,
     invoice_date: todayStr,
     supply_date: todayStr,

@@ -60,8 +60,8 @@ export function InvoiceDetailModal({
   const payments = db.getPayments().filter((p) => p.invoice_id === invoice.id);
   const creditNotes = db.getCreditNotes().filter((cn) => cn.invoice_id === invoice.id);
 
-  const handleIssueInvoice = () => {
-    const res = invoiceService.issueInvoice(invoice.id);
+  const handleIssueInvoice = async () => {
+    const res = await invoiceService.issueInvoice(invoice.id);
     if (res.success) {
       setActionSuccess('Tax invoice has been officially issued with legal sequential numbering.');
       onRefresh();
@@ -71,8 +71,8 @@ export function InvoiceDetailModal({
     }
   };
 
-  const handleDuplicateInvoice = () => {
-    const res = invoiceService.duplicateInvoice(invoice.id);
+  const handleDuplicateInvoice = async () => {
+    const res = await invoiceService.duplicateInvoice(invoice.id);
     if (res.success && res.data) {
       setActionSuccess(`Cloned invoice into draft proposal: ${res.data.invoice_number}`);
       onRefresh();
@@ -82,12 +82,12 @@ export function InvoiceDetailModal({
     }
   };
 
-  const handleCancelInvoice = () => {
+  const handleCancelInvoice = async () => {
     if (!cancelReason.trim()) {
       setCancelError('A detailed reason is mandatory to cancel an issued tax invoice.');
       return;
     }
-    const res = invoiceService.cancelInvoice(invoice.id, cancelReason.trim());
+    const res = await invoiceService.cancelInvoice(invoice.id, cancelReason.trim());
     if (res.success) {
       setCancelModalOpen(false);
       setCancelReason('');

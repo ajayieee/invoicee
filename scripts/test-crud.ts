@@ -135,7 +135,7 @@ async function runTestSuite() {
   );
 
   // CREATE: New corporate customer
-  const createCustRes = customerService.createCustomer({
+  const createCustRes = await customerService.createCustomer({
     customer_type: 'COMPANY',
     relation_type: 'CUSTOMER',
     company_name: 'Emaar Hospitality Group PJSC',
@@ -152,7 +152,7 @@ async function runTestSuite() {
   const newCustId = createCustRes.data!.id;
 
   // CREATE: Sales prospect lead
-  const createProspectRes = customerService.createCustomer({
+  const createProspectRes = await customerService.createCustomer({
     customer_type: 'INDIVIDUAL',
     relation_type: 'PROSPECT',
     contact_person: 'Mansoor Al-Zaabi',
@@ -190,7 +190,7 @@ async function runTestSuite() {
   assert(c360!.invoices.length > 0, 'READ: Customer 360 links historical invoices');
 
   // UPDATE:
-  const updateCustRes = customerService.updateCustomer(newCustId, {
+  const updateCustRes = await customerService.updateCustomer(newCustId, {
     customer_type: 'COMPANY',
     relation_type: 'CUSTOMER',
     company_name: 'Emaar Hospitality Group PJSC',
@@ -206,26 +206,26 @@ async function runTestSuite() {
   );
 
   // TOGGLE ACTIVE:
-  customerService.toggleActive(newCustId);
+  await customerService.toggleActive(newCustId);
   assert(
     customerService.getCustomerById(newCustId)?.is_active === false,
     'UPDATE: Account deactivated successfully'
   );
-  customerService.toggleActive(newCustId);
+  await customerService.toggleActive(newCustId);
   assert(
     customerService.getCustomerById(newCustId)?.is_active === true,
     'UPDATE: Account reactivated successfully'
   );
 
   // DELETE: Guard against deleting customer with existing invoices
-  const delBlocked = customerService.deleteCustomer('cust-001');
+  const delBlocked = await customerService.deleteCustomer('cust-001');
   assert(
     Boolean(!delBlocked.success && delBlocked.error?.includes('financial invoices exist')),
     'DELETE GUARD: Prevents deleting customer with active financial invoices'
   );
 
   // DELETE: Customer without transactions can be deleted
-  const delAllowed = customerService.deleteCustomer(prospectId);
+  const delAllowed = await customerService.deleteCustomer(prospectId);
   assert(
     delAllowed.success,
     'DELETE: Deletes prospect with zero financial transactions cleanly'

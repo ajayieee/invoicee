@@ -213,13 +213,13 @@ export function QuoteBuilderModal({
     onSuccess(savedQuote.id);
   };
 
-  const handleQuickCreateCustomer = () => {
+  const handleQuickCreateCustomer = async () => {
     if (!quickCustPerson.trim()) {
       alert('Contact person name is required.');
       return;
     }
 
-    const res = customerService.createCustomer(
+    const res = await customerService.createCustomer(
       {
         customer_type: quickCustName.trim() ? 'COMPANY' : 'INDIVIDUAL',
         relation_type: 'PROSPECT',

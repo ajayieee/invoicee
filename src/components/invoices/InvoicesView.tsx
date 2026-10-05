@@ -62,6 +62,18 @@ export function InvoicesView({
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | undefined>(undefined);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  // State version nonce to trigger re-renders on cloud sync
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    invoiceService.syncInvoices().then(() => setNonce((n) => n + 1));
+    customerService.syncCustomers().then(() => setNonce((n) => n + 1));
+
+    const handleStoreUpdate = () => setNonce((n) => n + 1);
+    window.addEventListener('database-store-updated', handleStoreUpdate);
+    return () => window.removeEventListener('database-store-updated', handleStoreUpdate);
+  }, []);
+
   // Fetch invoices with query
   const query: InvoiceQuery = {
     search: search.trim() || undefined,
@@ -78,7 +90,9 @@ export function InvoicesView({
   const invoices = paginatedResult.items;
 
   // Refresh handler
-  const refreshList = () => {
+  const refreshList = async () => {
+    await invoiceService.syncInvoices();
+    setNonce((n) => n + 1);
     if (selectedInvoice) {
       const refreshed = invoiceService.getInvoiceById(selectedInvoice.id);
       setSelectedInvoice(refreshed || null);
@@ -96,18 +110,18 @@ export function InvoicesView({
     setBuilderOpen(true);
   };
 
-  const handleIssueDirect = (invId: string) => {
-    invoiceService.issueInvoice(invId);
-    refreshList();
+  const handleIssueDirect = async (invId: string) => {
+    await invoiceService.issueInvoice(invId);
+    await refreshList();
   };
 
-  const handleDuplicateDirect = (invId: string) => {
-    const res = invoiceService.duplicateInvoice(invId);
+  const handleDuplicateDirect = async (invId: string) => {
+    const res = await invoiceService.duplicateInvoice(invId);
     if (res.success && res.data) {
       setEditingInvoiceId(res.data.id);
       setBuilderOpen(true);
     }
-    refreshList();
+    await refreshList();
   };
 
   return (

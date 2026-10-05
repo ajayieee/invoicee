@@ -39,6 +39,21 @@ interface AuthContextType {
     role: UserRole,
     title?: string
   ) => Promise<{ success: boolean; error?: string }>;
+  updateUserDetails: (
+    userId: string,
+    data: {
+      name?: string;
+      email?: string;
+      role?: UserRole;
+      title?: string;
+      password?: string;
+    }
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; error?: string }>;
   hasPermission: (permission: keyof RolePermissions) => boolean;
   refreshOrgContext: () => void;
   refreshUsers: () => Promise<void>;
@@ -256,6 +271,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUserDetails = async (
+    userId: string,
+    data: {
+      name?: string;
+      email?: string;
+      role?: UserRole;
+      title?: string;
+      password?: string;
+    }
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser?.role !== 'OWNER' && currentUser?.role !== 'ADMIN') {
+      return { success: false, error: 'Administrative privileges required to modify user details.' };
+    }
+
+    try {
+      const savedToken = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (savedToken) {
+        headers['Authorization'] = `Bearer ${savedToken}`;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/auth/users/${userId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, error: json.error || 'Failed to update user details.' };
+      }
+
+      await refreshUsers();
+
+      if (currentUser?.id === userId) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          name: data.name || prev.name,
+          email: data.email || prev.email,
+          title: data.title || prev.title,
+        }));
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while updating user details.' };
+    }
+  };
+
+  const deleteUser = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser?.role !== 'OWNER' && currentUser?.role !== 'ADMIN') {
+      return { success: false, error: 'Administrative privileges required to delete team members.' };
+    }
+
+    if (currentUser?.id === userId) {
+      return { success: false, error: 'Administrators cannot delete their own account.' };
+    }
+
+    try {
+      const savedToken = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (savedToken) {
+        headers['Authorization'] = `Bearer ${savedToken}`;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/auth/users/${userId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, error: json.error || 'Failed to delete user.' };
+      }
+
+      await refreshUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while deleting user.' };
+    }
+  };
+
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const savedToken = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (savedToken) {
+        headers['Authorization'] = `Bearer ${savedToken}`;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, error: json.error || 'Failed to change password.' };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while changing password.' };
+    }
+  };
+
   const permissions: RolePermissions = currentUser
     ? authService.getUserPermissions(currentUser.role)
     : {
@@ -287,6 +412,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         inviteMember,
         updateUserRole,
+        updateUserDetails,
+        deleteUser,
+        changePassword,
         hasPermission,
         refreshOrgContext,
         refreshUsers,

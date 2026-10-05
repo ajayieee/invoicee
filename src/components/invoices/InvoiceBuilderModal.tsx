@@ -249,13 +249,13 @@ export function InvoiceBuilderModal({
   };
 
   // Quick Customer Creation inline
-  const handleQuickCreateCustomer = () => {
+  const handleQuickCreateCustomer = async () => {
     if (!quickCustName.trim()) {
       setFormError('Company or client name is required.');
       return;
     }
 
-    const res = customerService.createCustomer({
+    const res = await customerService.createCustomer({
       customer_type: 'COMPANY',
       relation_type: 'CUSTOMER',
       company_name: quickCustName.trim(),
@@ -279,7 +279,7 @@ export function InvoiceBuilderModal({
   };
 
   // Save handler (DRAFT or ISSUED)
-  const handleSubmit = (targetStatus: 'DRAFT' | 'ISSUED') => {
+  const handleSubmit = async (targetStatus: 'DRAFT' | 'ISSUED') => {
     setFieldErrors({});
     setFormError(null);
 
@@ -307,10 +307,10 @@ export function InvoiceBuilderModal({
     }
 
     if (initialInvoiceId) {
-      const res = invoiceService.updateDraftInvoice(initialInvoiceId, payload);
+      const res = await invoiceService.updateDraftInvoice(initialInvoiceId, payload);
       if (res.success && res.data) {
         if (targetStatus === 'ISSUED') {
-          const issueRes = invoiceService.issueInvoice(res.data.id);
+          const issueRes = await invoiceService.issueInvoice(res.data.id);
           if (issueRes.success && issueRes.data) {
             onSuccess(issueRes.data.id);
             onOpenChange(false);
@@ -323,7 +323,7 @@ export function InvoiceBuilderModal({
         setFormError(res.error || 'Failed to update invoice');
       }
     } else {
-      const res = invoiceService.createInvoice(payload);
+      const res = await invoiceService.createInvoice(payload);
       if (res.success && res.data) {
         onSuccess(res.data.id);
         onOpenChange(false);

@@ -83,8 +83,17 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [alertFeedback, setAlertFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
-  const fetchCustomers = () => {
+  const fetchCustomers = async () => {
     setLoading(true);
+    try {
+      await customerService.syncCustomers({
+        search,
+        relationType: selectedRelation,
+        emirate: selectedEmirate,
+      });
+    } catch (e) {
+      console.warn('Customer cloud sync failed:', e);
+    }
     const result = customerService.getCustomers({
       search,
       relationType: selectedRelation,
@@ -140,7 +149,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
     setModalOpen(true);
   };
 
-  const handleSaveCustomer = () => {
+  const handleSaveCustomer = async () => {
     setFieldErrors({});
 
     const payload = {
@@ -160,9 +169,9 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
       notes: notes.trim() || undefined,
     };
 
-    const res = editingId
+    const res = await (editingId
       ? customerService.updateCustomer(editingId, payload, user.name)
-      : customerService.createCustomer(payload, user.name);
+      : customerService.createCustomer(payload, user.name));
 
     if (!res.success) {
       if (res.errors) {
@@ -183,7 +192,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
       }.`,
     });
     setTimeout(() => setAlertFeedback(null), 4000);
-    fetchCustomers();
+    await fetchCustomers();
   };
 
   const handleView360 = (c: Customer) => {
@@ -192,21 +201,21 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
     setDetailModalOpen(true);
   };
 
-  const handleToggleActive = (c: Customer) => {
-    customerService.toggleActive(c.id);
-    fetchCustomers();
+  const handleToggleActive = async (c: Customer) => {
+    await customerService.toggleActive(c.id);
+    await fetchCustomers();
     if (detail360 && detail360.customer.id === c.id) {
       setDetail360(customerService.getCustomer360(c.id));
     }
   };
 
-  const handleDelete = (c: Customer) => {
+  const handleDelete = async (c: Customer) => {
     const displayName = c.company_name || c.contact_person;
     if (!confirm(`Are you sure you want to delete account "${displayName}"?`)) {
       return;
     }
 
-    const res = customerService.deleteCustomer(c.id, user.name);
+    const res = await customerService.deleteCustomer(c.id, user.name);
     if (!res.success) {
       setAlertFeedback({
         type: 'error',
@@ -220,7 +229,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
       message: `Account "${displayName}" deleted successfully.`,
     });
     setTimeout(() => setAlertFeedback(null), 4000);
-    fetchCustomers();
+    await fetchCustomers();
   };
 
   return (

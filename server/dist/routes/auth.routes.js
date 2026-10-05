@@ -11,4 +11,7 @@ router.post('/register', auth_middleware_js_1.authenticate, (0, auth_middleware_
 router.get('/me', auth_middleware_js_1.authenticate, auth_controller_js_1.getMe);
 router.get('/users', auth_middleware_js_1.authenticate, auth_controller_js_1.getUsers);
 router.patch('/users/:id/role', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER'), auth_controller_js_1.updateUserRole);
+router.put('/users/:id', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER'), auth_controller_js_1.updateUserDetails);
+router.delete('/users/:id', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER'), auth_controller_js_1.deleteUser);
+router.post('/change-password', auth_middleware_js_1.authenticate, auth_controller_js_1.changePassword);
 exports.default = router;

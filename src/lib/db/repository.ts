@@ -84,12 +84,10 @@ class Repository {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          // If legacy demo data or old Al Thuraya branding is detected, wipe localStorage
+          // If legacy demo branding is detected, clean up
           if (
             parsed.companySettings?.legal_company_name?.includes('Al Thuraya') ||
-            parsed.companySettings?.trading_name?.includes('Al Thuraya') ||
-            parsed.customers?.some((c: any) => c.company_name?.includes('Dubai Logistics')) ||
-            parsed.invoices?.some((i: any) => i.invoice_number === 'INV-2026-0001')
+            parsed.companySettings?.trading_name?.includes('Al Thuraya')
           ) {
             localStorage.removeItem(STORAGE_KEY);
             this.store = getInitialStore();
@@ -100,6 +98,11 @@ class Repository {
         } else {
           this.persist();
         }
+
+        // Trigger background sync from MongoDB Atlas on load
+        setTimeout(() => {
+          this.syncFromCloud().catch(() => {});
+        }, 100);
       } catch (e) {
         console.error('Failed to load local storage state:', e);
       }
@@ -119,6 +122,104 @@ class Repository {
   public resetToDefault() {
     this.store = getInitialStore();
     this.persist();
+  }
+
+  public async syncFromCloud(): Promise<void> {
+    if (!this.isBrowser) return;
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) return;
+
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      let changed = false;
+
+      // Fetch customers from MongoDB Atlas
+      try {
+        const custRes = await fetch(`${API_BASE}/customers?pageSize=1000`, { headers });
+        if (custRes.ok) {
+          const custData = await custRes.json();
+          if (custData.success && Array.isArray(custData.items)) {
+            const atlasCustomers = custData.items;
+            if (atlasCustomers.length > 0) {
+              this.store.customers = atlasCustomers;
+              changed = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[DB] Could not sync customers from MongoDB Atlas:', e);
+      }
+
+      // Fetch invoices from MongoDB Atlas
+      try {
+        const invRes = await fetch(`${API_BASE}/invoices?pageSize=1000`, { headers });
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          if (invData.success && Array.isArray(invData.items)) {
+            const atlasInvoices = invData.items;
+            if (atlasInvoices.length > 0) {
+              this.store.invoices = atlasInvoices;
+              changed = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[DB] Could not sync invoices from MongoDB Atlas:', e);
+      }
+
+      // Fetch payments from MongoDB Atlas
+      try {
+        const payRes = await fetch(`${API_BASE}/payments?pageSize=1000`, { headers });
+        if (payRes.ok) {
+          const payData = await payRes.json();
+          if (payData.success && Array.isArray(payData.items)) {
+            const atlasPayments = payData.items;
+            if (atlasPayments.length > 0) {
+              this.store.payments = atlasPayments;
+              changed = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[DB] Could not sync payments from MongoDB Atlas:', e);
+      }
+
+      if (changed) {
+        this.persist();
+        window.dispatchEvent(new CustomEvent('database-store-updated'));
+      }
+    } catch (err) {
+      console.warn('[DB] syncFromCloud error:', err);
+    }
+  }
+
+  public upsertCustomer(customer: Customer): Customer {
+    const custId = customer.id || (customer as any)._id;
+    const idx = this.store.customers.findIndex((c) => c.id === custId || (c as any)._id === custId);
+    if (idx !== -1) {
+      this.store.customers[idx] = { ...this.store.customers[idx], ...customer, id: custId };
+    } else {
+      this.store.customers.unshift({ ...customer, id: custId });
+    }
+    this.persist();
+    return customer;
+  }
+
+  public upsertInvoice(invoice: Invoice): Invoice {
+    const invId = invoice.id || (invoice as any)._id;
+    const idx = this.store.invoices.findIndex((i) => i.id === invId || (i as any)._id === invId);
+    if (idx !== -1) {
+      this.store.invoices[idx] = { ...this.store.invoices[idx], ...invoice, id: invId };
+    } else {
+      this.store.invoices.unshift({ ...invoice, id: invId });
+    }
+    this.persist();
+    return invoice;
   }
 
   // --- Audit Trail ---

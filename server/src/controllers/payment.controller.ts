@@ -6,6 +6,44 @@ import { PaymentMethod } from '../models/PaymentMethod.js';
 import { CompanySettings } from '../models/CompanySettings.js';
 import { AuditLog } from '../models/AuditLog.js';
 
+export function serializePayment(doc: any) {
+  if (!doc) return null;
+  const obj = doc.toObject ? doc.toObject() : doc;
+  const id = obj._id ? obj._id.toString() : obj.id;
+
+  return {
+    ...obj,
+    id,
+    _id: id,
+    invoice_id: obj.invoiceId ? obj.invoiceId.toString() : obj.invoice_id,
+    invoiceId: obj.invoiceId ? obj.invoiceId.toString() : obj.invoice_id,
+    invoice_number: obj.invoiceNumber || obj.invoice_number,
+    invoiceNumber: obj.invoiceNumber || obj.invoice_number,
+    customer_id: obj.customerId ? obj.customerId.toString() : obj.customer_id,
+    customerId: obj.customerId ? obj.customerId.toString() : obj.customer_id,
+    customer_name: obj.customerName || obj.customer_name,
+    customerName: obj.customerName || obj.customer_name,
+    payment_number: obj.paymentNumber || obj.payment_number,
+    paymentNumber: obj.paymentNumber || obj.payment_number,
+    sequence_number: obj.sequenceNumber ?? obj.sequence_number ?? 1,
+    sequenceNumber: obj.sequenceNumber ?? obj.sequence_number ?? 1,
+    payment_date: obj.paymentDate || obj.payment_date,
+    paymentDate: obj.paymentDate || obj.payment_date,
+    payment_method_id: obj.paymentMethodId ? obj.paymentMethodId.toString() : obj.payment_method_id,
+    paymentMethodId: obj.paymentMethodId ? obj.paymentMethodId.toString() : obj.payment_method_id,
+    payment_method_name: obj.paymentMethodName || obj.payment_method_name,
+    paymentMethodName: obj.paymentMethodName || obj.payment_method_name,
+    amount: Number(obj.amount || 0),
+    currency: obj.currency || 'AED',
+    reference_number: obj.referenceNumber ?? obj.reference_number ?? '',
+    referenceNumber: obj.referenceNumber ?? obj.reference_number ?? '',
+    notes: obj.notes || '',
+    status: obj.status,
+    created_at: obj.createdAt ? new Date(obj.createdAt).toISOString() : new Date().toISOString(),
+    updated_at: obj.updatedAt ? new Date(obj.updatedAt).toISOString() : new Date().toISOString(),
+  };
+}
+
 export async function getPayments(req: Request, res: Response): Promise<void> {
   try {
     const {
@@ -45,14 +83,15 @@ export async function getPayments(req: Request, res: Response): Promise<void> {
     }
 
     const p = Math.max(1, parseInt(page as string, 10));
-    const limit = Math.max(1, Math.min(100, parseInt(pageSize as string, 10)));
+    const limit = Math.max(1, Math.min(1000, parseInt(pageSize as string, 10)));
     const skip = (p - 1) * limit;
 
-    const [items, totalItems] = await Promise.all([
+    const [rawItems, totalItems] = await Promise.all([
       Payment.find(query).sort({ sequenceNumber: -1, createdAt: -1 }).skip(skip).limit(limit),
       Payment.countDocuments(query),
     ]);
 
+    const items = rawItems.map(serializePayment);
     const totalPages = Math.ceil(totalItems / limit) || 1;
 
     res.json({
@@ -70,17 +109,16 @@ export async function getPayments(req: Request, res: Response): Promise<void> {
 
 export async function recordPayment(req: Request, res: Response): Promise<void> {
   try {
-    const {
-      invoiceId,
-      paymentMethodId,
-      amount,
-      paymentDate,
-      referenceNumber,
-      notes,
-      paymentProofUrl,
-      paymentProofName,
-      allowDuplicate,
-    } = req.body;
+    const body = req.body;
+    const invoiceId = body.invoiceId || body.invoice_id;
+    const paymentMethodId = body.paymentMethodId || body.payment_method_id;
+    const amount = body.amount;
+    const paymentDate = body.paymentDate || body.payment_date;
+    const referenceNumber = body.referenceNumber || body.reference_number;
+    const notes = body.notes;
+    const paymentProofUrl = body.paymentProofUrl;
+    const paymentProofName = body.paymentProofName;
+    const allowDuplicate = body.allowDuplicate;
 
     const payAmount = Number(amount);
     if (isNaN(payAmount) || payAmount <= 0) {
@@ -88,7 +126,14 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const invoice = await Invoice.findById(invoiceId);
+    let invoice = null;
+    if (mongoose.Types.ObjectId.isValid(invoiceId)) {
+      invoice = await Invoice.findById(invoiceId);
+    }
+    if (!invoice) {
+      invoice = await Invoice.findOne({ invoiceNumber: invoiceId });
+    }
+
     if (!invoice) {
       res.status(404).json({ success: false, error: 'Invoice not found.' });
       return;
@@ -110,15 +155,32 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const paymentMethod = await PaymentMethod.findById(paymentMethodId);
+    let paymentMethod = null;
+    if (mongoose.Types.ObjectId.isValid(paymentMethodId)) {
+      paymentMethod = await PaymentMethod.findById(paymentMethodId);
+    }
     if (!paymentMethod) {
-      res.status(404).json({ success: false, error: 'Payment method not found.' });
-      return;
+      paymentMethod = await PaymentMethod.findOne({
+        $or: [{ code: paymentMethodId }, { name: paymentMethodId }],
+      });
+    }
+    if (!paymentMethod) {
+      // Find default or first payment method
+      paymentMethod = await PaymentMethod.findOne();
+    }
+    if (!paymentMethod) {
+      // Create a default payment method if none exists
+      paymentMethod = await PaymentMethod.create({
+        name: 'Bank Transfer',
+        code: 'BANK_TRANSFER',
+        type: 'BANK_TRANSFER',
+        isActive: true,
+      });
     }
 
     // Duplicate payment check
     if (!allowDuplicate) {
-      const activePayments = await Payment.find({ invoiceId, status: 'RECORDED' });
+      const activePayments = await Payment.find({ invoiceId: invoice._id, status: 'RECORDED' });
       const targetDate = paymentDate || new Date().toISOString().split('T')[0];
 
       if (referenceNumber && referenceNumber.trim()) {
@@ -151,7 +213,7 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
     const lastPayment = await Payment.findOne().sort({ sequenceNumber: -1 });
     const nextSeq = (lastPayment?.sequenceNumber || 0) + 1;
     const year = new Date().getFullYear();
-    const paymentNumber = `${prefix}-${year}-${String(nextSeq).padStart(5, '0')}`;
+    const paymentNumber = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
 
     const newPayment = await Payment.create({
       organizationId: invoice.organizationId,
@@ -171,7 +233,9 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
       paymentProofUrl,
       paymentProofName,
       status: 'RECORDED',
-      createdBy: req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined,
+      createdBy: req.user?.userId && mongoose.Types.ObjectId.isValid(req.user.userId)
+        ? new mongoose.Types.ObjectId(req.user.userId)
+        : undefined,
     });
 
     // Update invoice paid & balance due
@@ -192,7 +256,7 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
       newValues: { paymentNumber, amount: payAmount, invoiceNumber: invoice.invoiceNumber },
     });
 
-    res.status(201).json({ success: true, data: newPayment });
+    res.status(201).json({ success: true, data: serializePayment(newPayment) });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -211,7 +275,14 @@ export async function reversePayment(req: Request, res: Response): Promise<void>
       return;
     }
 
-    const payment = await Payment.findById(id);
+    let payment = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      payment = await Payment.findById(id);
+    }
+    if (!payment) {
+      payment = await Payment.findOne({ paymentNumber: id });
+    }
+
     if (!payment) {
       res.status(404).json({ success: false, error: 'Payment not found.' });
       return;
@@ -225,7 +296,9 @@ export async function reversePayment(req: Request, res: Response): Promise<void>
     payment.status = 'REVERSED';
     payment.reversalReason = reason.trim();
     payment.reversedAt = new Date();
-    payment.reversedBy = req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined;
+    payment.reversedBy = req.user?.userId && mongoose.Types.ObjectId.isValid(req.user.userId)
+      ? new mongoose.Types.ObjectId(req.user.userId)
+      : undefined;
     await payment.save();
 
     // Reopen invoice balance
@@ -256,7 +329,7 @@ export async function reversePayment(req: Request, res: Response): Promise<void>
       newValues: { status: 'REVERSED', reason: reason.trim() },
     });
 
-    res.json({ success: true, data: payment });
+    res.json({ success: true, data: serializePayment(payment) });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

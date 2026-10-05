@@ -14,7 +14,7 @@ import {
   Users,
   UserPlus,
   Shield,
-  Edit3,
+  Edit2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -27,16 +27,26 @@ import { useAuth } from '@/context/AuthContext';
 import { User, UserRole } from '@/types/auth';
 import { formatDate } from '@/lib/utils';
 import { InviteMemberModal } from '@/components/auth/InviteMemberModal';
-import { ChangeRoleModal } from '@/components/auth/ChangeRoleModal';
+import { EditMemberModal } from '@/components/auth/EditMemberModal';
 
 export function SettingsView() {
-  const { user, permissions, refreshOrgContext, availableUsers, inviteMember, updateUserRole, refreshUsers } = useAuth();
+  const {
+    user,
+    permissions,
+    refreshOrgContext,
+    availableUsers,
+    inviteMember,
+    updateUserRole,
+    updateUserDetails,
+    deleteUser,
+    refreshUsers,
+  } = useAuth();
   const [settings, setSettings] = useState<CompanySettings>(companyService.getSettings());
   const auditLogs = companyService.getAuditTrail().slice(0, 25);
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'VAT' | 'NUMBERING' | 'BANK' | 'USERS' | 'AUDIT'>('PROFILE');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
@@ -698,13 +708,13 @@ export function SettingsView() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              setSelectedUserForRole(u);
-                              setRoleModalOpen(true);
+                              setSelectedUserForEdit(u);
+                              setEditModalOpen(true);
                             }}
                             className="text-[11px] h-7 px-2.5 inline-flex items-center gap-1 cursor-pointer"
                           >
-                            <Shield className="h-3 w-3 text-slate-500" />
-                            <span>Edit Role</span>
+                            <Edit2 className="h-3 w-3 text-slate-500" />
+                            <span>Edit</span>
                           </Button>
                         ) : (
                           <span
@@ -739,14 +749,15 @@ export function SettingsView() {
         onSuccess={refreshUsers}
       />
 
-      <ChangeRoleModal
-        open={roleModalOpen}
-        onOpenChange={setRoleModalOpen}
-        targetUser={selectedUserForRole}
-        onUpdateRole={updateUserRole}
+      <EditMemberModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        targetUser={selectedUserForEdit}
+        onUpdateUser={updateUserDetails}
+        onDeleteUser={deleteUser}
         onSuccess={() => {
           refreshUsers();
-          setFeedback({ type: 'success', message: 'Team member role updated successfully in MongoDB Atlas.' });
+          setFeedback({ type: 'success', message: 'Team member updated successfully in MongoDB Atlas.' });
         }}
       />
     </div>

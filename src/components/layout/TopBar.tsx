@@ -14,14 +14,16 @@ import {
   LogOut,
   Users,
   Shield,
-  Edit3,
+  Edit2,
   Lock,
+  Key,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { User } from '@/types/auth';
 import { InviteMemberModal } from '@/components/auth/InviteMemberModal';
-import { ChangeRoleModal } from '@/components/auth/ChangeRoleModal';
+import { EditMemberModal } from '@/components/auth/EditMemberModal';
+import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 
 interface TopBarProps {
   onQuickAction: (action: 'NEW_QUOTE' | 'NEW_INVOICE' | 'RECORD_PAYMENT' | 'NEW_CUSTOMER') => void;
@@ -38,12 +40,24 @@ export function TopBar({
   onResetData,
   onToggleMobileMenu,
 }: TopBarProps) {
-  const { user, availableUsers, permissions, organization, logout, inviteMember, updateUserRole, refreshUsers } = useAuth();
+  const {
+    user,
+    availableUsers,
+    permissions,
+    organization,
+    logout,
+    inviteMember,
+    updateUserDetails,
+    deleteUser,
+    changePassword,
+    refreshUsers,
+  } = useAuth();
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
 
   if (!user) return null;
 
@@ -233,6 +247,19 @@ export function TopBar({
                       {user.role === 'VIEWER' && 'Read-only Audit Access'}
                     </span>
                   </div>
+
+                  {/* Admin Change Password Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      setChangePasswordModalOpen(true);
+                    }}
+                    className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-100/80 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Key className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Change Password</span>
+                  </button>
                 </div>
 
                 {/* Company Team & Roles List (Available to OWNER / ADMIN) */}
@@ -243,7 +270,7 @@ export function TopBar({
                         <Users className="h-3.5 w-3.5 text-slate-400" />
                         <span>Company Team Members ({availableUsers.length})</span>
                       </span>
-                      <span className="text-[9px] text-slate-400 font-medium">Manage Roles</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Manage Team</span>
                     </div>
 
                     <div className="max-h-52 overflow-y-auto px-1 space-y-1.5 mt-1">
@@ -293,20 +320,20 @@ export function TopBar({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedUserForRole(u);
-                                  setRoleModalOpen(true);
+                                  setSelectedUserForEdit(u);
+                                  setEditModalOpen(true);
                                   setUserMenuOpen(false);
                                 }}
-                                className="text-[10px] text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 font-medium px-1.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
-                                title={`Change role for ${u.name}`}
+                                className="text-[10px] text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 font-medium px-2 py-1 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                title={`Edit details, role, and password for ${u.name}`}
                               >
-                                <Shield className="h-3 w-3 text-slate-400 hover:text-emerald-600" />
-                                <span>Role</span>
+                                <Edit2 className="h-3 w-3 text-slate-400 hover:text-emerald-600" />
+                                <span>Edit</span>
                               </button>
                             ) : (
                               <span
                                 className="text-[10px] text-slate-400 font-medium px-2 py-1 rounded-lg bg-slate-100/80 border border-slate-200 flex items-center gap-1 cursor-default select-none"
-                                title="Your administrator role is permanently protected"
+                                title="Your administrator account is permanently protected"
                               >
                                 <Lock className="h-3 w-3 text-slate-400" />
                                 <span>Locked</span>
@@ -364,12 +391,19 @@ export function TopBar({
         onSuccess={refreshUsers}
       />
 
-      <ChangeRoleModal
-        open={roleModalOpen}
-        onOpenChange={setRoleModalOpen}
-        targetUser={selectedUserForRole}
-        onUpdateRole={updateUserRole}
+      <EditMemberModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        targetUser={selectedUserForEdit}
+        onUpdateUser={updateUserDetails}
+        onDeleteUser={deleteUser}
         onSuccess={refreshUsers}
+      />
+
+      <ChangePasswordModal
+        open={changePasswordModalOpen}
+        onOpenChange={setChangePasswordModalOpen}
+        onChangePassword={changePassword}
       />
     </header>
   );

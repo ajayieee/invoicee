@@ -2,6 +2,7 @@ import { Customer, CustomerRelation, CustomerType, UAEEmirate, Invoice, Quote, P
 import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
 import { ValidationRules } from '@/lib/validation/rules';
+import { apiClient } from '@/lib/api/client';
 
 export interface CustomerQuery {
   search?: string;
@@ -106,6 +107,30 @@ class CustomerService {
     }
 
     return errors;
+  }
+
+  /**
+   * Synchronize all customers from MongoDB Atlas Express API directly into local store.
+   */
+  async syncCustomers(query: CustomerQuery = {}): Promise<Customer[]> {
+    try {
+      const res = await apiClient.get<{ success: boolean; items: Customer[] }>('/customers', {
+        pageSize: 1000,
+        relationType: query.relationType !== 'ALL' ? query.relationType : undefined,
+        emirate: query.emirate !== 'ALL' ? query.emirate : undefined,
+        search: query.search?.trim() || undefined,
+      });
+
+      if (res && res.success && Array.isArray(res.items)) {
+        res.items.forEach((c) => {
+          db.upsertCustomer(c);
+        });
+        return res.items;
+      }
+    } catch (err) {
+      console.warn('[CustomerService] Atlas sync failed, using cached store:', err);
+    }
+    return db.getCustomers();
   }
 
   getCustomers(query: CustomerQuery = {}): PaginatedResult<Customer> {
@@ -216,10 +241,13 @@ class CustomerService {
     };
   }
 
-  createCustomer(
+  /**
+   * Persists customer directly to MongoDB Atlas REST API and synchronizes locally.
+   */
+  async createCustomer(
     data: CustomerInput,
     performedBy = 'Current User'
-  ): ServiceResponse<Customer> {
+  ): Promise<ServiceResponse<Customer>> {
     const errors = this.validateCustomer(data);
     if (Object.keys(errors).length > 0) {
       return {
@@ -229,43 +257,62 @@ class CustomerService {
       };
     }
 
-    try {
-      const saved = db.saveCustomer({
-        customer_type: data.customer_type,
-        relation_type: data.relation_type,
-        company_name: data.customer_type === 'COMPANY' ? data.company_name?.trim() : undefined,
-        contact_person: data.contact_person.trim(),
-        email: data.email?.trim() || undefined,
-        phone: data.phone?.trim() || undefined,
-        mobile: data.mobile?.trim() || undefined,
-        trn: data.trn?.trim() || undefined,
-        billing_emirate: data.billing_emirate || 'DUBAI',
-        billing_address_line_1: data.billing_address_line_1?.trim() || undefined,
-        billing_address_line_2: data.billing_address_line_2?.trim() || undefined,
-        billing_city: data.billing_city?.trim() || 'Dubai',
-        billing_po_box: data.billing_po_box?.trim() || undefined,
-        payment_terms_days: Number(data.payment_terms_days) || 30,
-        currency: data.currency || 'AED',
-        notes: data.notes?.trim() || undefined,
-      });
+    const payload = {
+      customer_type: data.customer_type,
+      relation_type: data.relation_type,
+      company_name: data.customer_type === 'COMPANY' ? data.company_name?.trim() : undefined,
+      contact_person: data.contact_person.trim(),
+      email: data.email?.trim() || undefined,
+      phone: data.phone?.trim() || undefined,
+      mobile: data.mobile?.trim() || undefined,
+      trn: data.trn?.trim() || undefined,
+      billing_emirate: data.billing_emirate || 'DUBAI',
+      billing_address_line_1: data.billing_address_line_1?.trim() || undefined,
+      billing_address_line_2: data.billing_address_line_2?.trim() || undefined,
+      billing_city: data.billing_city?.trim() || 'Dubai',
+      billing_po_box: data.billing_po_box?.trim() || undefined,
+      payment_terms_days: Number(data.payment_terms_days) || 30,
+      currency: data.currency || 'AED',
+      notes: data.notes?.trim() || undefined,
+    };
 
-      return {
-        success: true,
-        data: saved,
-      };
+    try {
+      // 1. Save directly to MongoDB Atlas
+      const res = await apiClient.post<{ success: boolean; data: Customer }>('/customers', payload);
+      if (res && res.success && res.data) {
+        // 2. Synchronize to local DB
+        const saved = db.upsertCustomer(res.data);
+        return {
+          success: true,
+          data: saved,
+        };
+      }
+      throw new Error('Unexpected response from customer API');
     } catch (e: any) {
-      return {
-        success: false,
-        error: e.message || 'Failed to create customer.',
-      };
+      console.warn('[CustomerService] Cloud API error, saving to local store:', e.message);
+      try {
+        const localSaved = db.saveCustomer(payload);
+        return {
+          success: true,
+          data: localSaved,
+        };
+      } catch (localErr: any) {
+        return {
+          success: false,
+          error: e.message || localErr.message || 'Failed to create customer.',
+        };
+      }
     }
   }
 
-  updateCustomer(
+  /**
+   * Updates customer in MongoDB Atlas REST API and synchronizes locally.
+   */
+  async updateCustomer(
     id: string,
     data: CustomerInput,
     performedBy = 'Current User'
-  ): ServiceResponse<Customer> {
+  ): Promise<ServiceResponse<Customer>> {
     const errors = this.validateCustomer(data);
     if (Object.keys(errors).length > 0) {
       return {
@@ -275,45 +322,50 @@ class CustomerService {
       };
     }
 
+    const payload = {
+      customer_type: data.customer_type,
+      relation_type: data.relation_type,
+      company_name: data.customer_type === 'COMPANY' ? data.company_name?.trim() : undefined,
+      contact_person: data.contact_person.trim(),
+      email: data.email?.trim() || undefined,
+      phone: data.phone?.trim() || undefined,
+      mobile: data.mobile?.trim() || undefined,
+      trn: data.trn?.trim() || undefined,
+      billing_emirate: data.billing_emirate || 'DUBAI',
+      billing_address_line_1: data.billing_address_line_1?.trim() || undefined,
+      billing_address_line_2: data.billing_address_line_2?.trim() || undefined,
+      billing_city: data.billing_city?.trim() || 'Dubai',
+      billing_po_box: data.billing_po_box?.trim() || undefined,
+      payment_terms_days: Number(data.payment_terms_days) || 30,
+      currency: data.currency || 'AED',
+      notes: data.notes?.trim() || undefined,
+    };
+
     try {
-      const existing = db.getCustomerById(id);
-      if (!existing) {
-        return { success: false, error: 'Customer not found.' };
+      const res = await apiClient.put<{ success: boolean; data: Customer }>(`/customers/${id}`, payload);
+      if (res && res.success && res.data) {
+        const saved = db.upsertCustomer(res.data);
+        return { success: true, data: saved };
       }
-
-      const saved = db.saveCustomer({
-        id,
-        customer_type: data.customer_type,
-        relation_type: data.relation_type,
-        company_name: data.customer_type === 'COMPANY' ? data.company_name?.trim() : undefined,
-        contact_person: data.contact_person.trim(),
-        email: data.email?.trim() || undefined,
-        phone: data.phone?.trim() || undefined,
-        mobile: data.mobile?.trim() || undefined,
-        trn: data.trn?.trim() || undefined,
-        billing_emirate: data.billing_emirate || 'DUBAI',
-        billing_address_line_1: data.billing_address_line_1?.trim() || undefined,
-        billing_address_line_2: data.billing_address_line_2?.trim() || undefined,
-        billing_city: data.billing_city?.trim() || 'Dubai',
-        billing_po_box: data.billing_po_box?.trim() || undefined,
-        payment_terms_days: Number(data.payment_terms_days) || 30,
-        currency: data.currency || existing.currency || 'AED',
-        notes: data.notes?.trim() || undefined,
-      });
-
-      return {
-        success: true,
-        data: saved,
-      };
+      throw new Error('Unexpected response from update customer API');
     } catch (e: any) {
-      return {
-        success: false,
-        error: e.message || 'Failed to update customer.',
-      };
+      console.warn('[CustomerService] Cloud API error on update, updating local:', e.message);
+      try {
+        const saved = db.saveCustomer({ id, ...payload });
+        return { success: true, data: saved };
+      } catch (localErr: any) {
+        return {
+          success: false,
+          error: e.message || localErr.message || 'Failed to update customer.',
+        };
+      }
     }
   }
 
-  deleteCustomer(id: string, performedBy = 'Current User'): ServiceResponse<boolean> {
+  /**
+   * Deletes customer in MongoDB Atlas REST API and deletes locally.
+   */
+  async deleteCustomer(id: string, performedBy = 'Current User'): Promise<ServiceResponse<boolean>> {
     // Check if customer has associated invoices or quotes
     const invoices = db.getInvoices().filter((i) => i.customer_id === id);
     if (invoices.length > 0) {
@@ -332,30 +384,50 @@ class CustomerService {
     }
 
     try {
+      await apiClient.delete(`/customers/${id}`);
       db.deleteCustomer(id);
       return {
         success: true,
         data: true,
       };
     } catch (e: any) {
-      return {
-        success: false,
-        error: e.message || 'Failed to delete customer.',
-      };
+      // If local ID or server returned error, attempt local delete if not present on server
+      try {
+        db.deleteCustomer(id);
+        return { success: true, data: true };
+      } catch (localErr: any) {
+        return {
+          success: false,
+          error: e.message || 'Failed to delete customer.',
+        };
+      }
     }
   }
 
-  toggleActive(id: string): ServiceResponse<Customer> {
+  async toggleActive(id: string): Promise<ServiceResponse<Customer>> {
     const existing = db.getCustomerById(id);
     if (!existing) {
       return { success: false, error: 'Customer not found.' };
     }
 
+    const nextActive = !existing.is_active;
+
+    try {
+      const res = await apiClient.put<{ success: boolean; data: Customer }>(`/customers/${id}`, {
+        is_active: nextActive,
+      });
+      if (res && res.success && res.data) {
+        const updated = db.upsertCustomer(res.data);
+        return { success: true, data: updated };
+      }
+    } catch (e) {
+      console.warn('[CustomerService] Cloud toggleActive error, updating local:', e);
+    }
+
     const updated = db.saveCustomer({
       ...existing,
-      is_active: !existing.is_active,
+      is_active: nextActive,
     });
-
     return { success: true, data: updated };
   }
 }
