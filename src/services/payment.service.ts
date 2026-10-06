@@ -1,6 +1,8 @@
 import { Payment, PaymentMethod, PaymentStatus, Invoice } from '@/types/database';
 import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
+import { apiClient } from '@/lib/api/client';
+import { invoiceService } from './invoice.service';
 
 export interface PaymentQuery {
   search?: string;
@@ -139,10 +141,31 @@ class PaymentService {
   }
 
   /**
-   * Records a payment against an invoice.
+   * Synchronize all payments from MongoDB Atlas Express API into local cache.
+   */
+  public async syncPayments(): Promise<Payment[]> {
+    try {
+      const res = await apiClient.get<{ success: boolean; items: Payment[] }>('/payments', {
+        pageSize: 1000,
+      });
+
+      if (res && res.success && Array.isArray(res.items)) {
+        res.items.forEach((p) => {
+          db.upsertPayment(p);
+        });
+        return res.items;
+      }
+    } catch (err) {
+      console.warn('[PaymentService] Failed to sync payments from MongoDB Atlas:', err);
+    }
+    return db.getPayments();
+  }
+
+  /**
+   * Records a payment against an invoice directly in MongoDB Atlas and synchronizes locally.
    * Includes duplicate payment prevention, anti-overpayment check, and status update.
    */
-  public recordPayment(input: RecordPaymentPayload): ServiceResponse<Payment> {
+  public async recordPayment(input: RecordPaymentPayload): Promise<ServiceResponse<Payment>> {
     const inv = db.getInvoiceById(input.invoice_id);
     if (!inv) {
       return { success: false, error: 'Target invoice not found.' };
@@ -208,6 +231,45 @@ class PaymentService {
     }
 
     try {
+      // 1. Post payment to MongoDB Atlas Express API
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Payment }>('/payments', {
+          invoice_id: inv.id,
+          invoiceId: inv.id,
+          payment_method_id: input.payment_method_id,
+          paymentMethodId: input.payment_method_id,
+          amount: payAmount,
+          payment_date: input.payment_date,
+          paymentDate: input.payment_date,
+          reference_number: input.reference_number?.trim() || undefined,
+          referenceNumber: input.reference_number?.trim() || undefined,
+          notes: input.notes?.trim() || undefined,
+          payment_proof_url: input.payment_proof_url,
+          paymentProofUrl: input.payment_proof_url,
+          payment_proof_name: input.payment_proof_name,
+          paymentProofName: input.payment_proof_name,
+          allow_duplicate: input.allow_duplicate,
+          allowDuplicate: input.allow_duplicate,
+        });
+
+        if (res && res.success && res.data) {
+          db.upsertPayment(res.data);
+          // Re-sync all invoices from Atlas so the updated status (PARTIALLY_PAID) and balance_due are pulled
+          await invoiceService.syncInvoices();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('database-store-updated'));
+          }
+          return { success: true, data: res.data };
+        }
+      } catch (apiErr: any) {
+        // If it's a duplicate payment warning or balance error, return it
+        if (apiErr.message && (apiErr.message.includes('duplicate payment') || apiErr.message.includes('exceeds invoice'))) {
+          return { success: false, error: apiErr.message };
+        }
+        console.warn('[PaymentService] Direct Atlas post failed, saving locally:', apiErr.message);
+      }
+
+      // Local fallback
       const payment = db.recordPayment({
         invoice_id: inv.id,
         payment_method_id: input.payment_method_id,
@@ -219,6 +281,10 @@ class PaymentService {
         payment_proof_name: input.payment_proof_name,
       });
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('database-store-updated'));
+      }
+
       return { success: true, data: payment };
     } catch (e: any) {
       return { success: false, error: e.message || 'Failed to record payment.' };
@@ -226,10 +292,10 @@ class PaymentService {
   }
 
   /**
-   * Reverses a recorded payment.
+   * Reverses a recorded payment in MongoDB Atlas and local cache.
    * Reopens invoice balance due and updates invoice status (does not delete record).
    */
-  public reversePayment(paymentId: string, reason: string): ServiceResponse<Payment> {
+  public async reversePayment(paymentId: string, reason: string): Promise<ServiceResponse<Payment>> {
     if (!reason || !reason.trim()) {
       return {
         success: false,
@@ -247,7 +313,28 @@ class PaymentService {
     }
 
     try {
+      try {
+        const res = await apiClient.post<{ success: boolean; data: Payment }>(
+          `/payments/${paymentId}/reverse`,
+          { reason: reason.trim() }
+        );
+
+        if (res && res.success && res.data) {
+          db.upsertPayment(res.data);
+          await invoiceService.syncInvoices();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('database-store-updated'));
+          }
+          return { success: true, data: res.data };
+        }
+      } catch (apiErr: any) {
+        console.warn('[PaymentService] Direct Atlas payment reversal failed, reversing locally:', apiErr.message);
+      }
+
       const reversed = db.reversePayment(paymentId, reason.trim());
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('database-store-updated'));
+      }
       return { success: true, data: reversed };
     } catch (e: any) {
       return { success: false, error: e.message || 'Failed to reverse payment.' };

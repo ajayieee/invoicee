@@ -234,7 +234,9 @@ function AppHomeContent() {
         targetInvoice={paymentTargetInvoice}
         onSuccess={() => {
           triggerRefresh();
-          setCurrentTab('payments');
+          if (!paymentTargetInvoice) {
+            setCurrentTab('payments');
+          }
         }}
       />
 

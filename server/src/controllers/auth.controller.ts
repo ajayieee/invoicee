@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
+import { sendPasswordResetEmail } from '../services/email.service.js';
 
 export async function login(req: Request, res: Response): Promise<void> {
   try {
@@ -385,6 +386,114 @@ export async function changePassword(req: Request, res: Response): Promise<void>
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || 'Failed to change password.' });
+  }
+}
+
+export async function forgotPassword(req: Request, res: Response): Promise<void> {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      res.status(400).json({ success: false, error: 'A valid email address is required.' });
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail, isActive: true });
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: 'No active user account found with that email address.',
+      });
+      return;
+    }
+
+    // Generate a secure 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiryMinutes = 15;
+    user.resetPasswordCode = verificationCode;
+    user.resetPasswordExpires = new Date(Date.now() + expiryMinutes * 60 * 1000);
+    await user.save();
+
+    // Option A: Send branded transactional email via Brevo API
+    const emailResult = await sendPasswordResetEmail(user.email, user.name, verificationCode, expiryMinutes);
+
+    // Fallback log to terminal for convenience / testing
+    console.log('\n======================================================');
+    console.log(' [PASSWORD RESET VERIFICATION CODE]');
+    console.log(` Target User:       ${user.name} (${user.email})`);
+    console.log(` 6-Digit OTP Code:  ${verificationCode}`);
+    console.log(` Validity:          ${expiryMinutes} minutes`);
+    console.log(` Brevo Delivery:    ${emailResult.deliveredVia === 'brevo' ? 'SENT via Brevo API (Message ID: ' + emailResult.messageId + ')' : 'Console Fallback (Set BREVO_API_KEY in server/.env)'}`);
+    console.log('======================================================\n');
+
+    res.json({
+      success: true,
+      message: emailResult.deliveredVia === 'brevo'
+        ? `A 6-digit verification code has been sent to your email (${user.email}) via Brevo.`
+        : `A 6-digit verification code has been generated for ${user.email}.`,
+      deliveredVia: emailResult.deliveredVia,
+      devCode: emailResult.deliveredVia === 'console_fallback' || process.env.NODE_ENV !== 'production' ? verificationCode : undefined,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to process forgot password request.' });
+  }
+}
+
+export async function resetPassword(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      res.status(400).json({
+        success: false,
+        error: 'Email address, verification code, and new password are required.',
+      });
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.toString().trim();
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      res.status(400).json({
+        success: false,
+        error: 'New password must be at least 8 characters long.',
+      });
+      return;
+    }
+
+    const user = await User.findOne({ email: cleanEmail, isActive: true });
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User account not found.' });
+      return;
+    }
+
+    if (!user.resetPasswordCode || user.resetPasswordCode !== cleanCode) {
+      res.status(400).json({ success: false, error: 'Invalid verification code.' });
+      return;
+    }
+
+    if (!user.resetPasswordExpires || new Date() > user.resetPasswordExpires) {
+      res.status(400).json({
+        success: false,
+        error: 'Verification code has expired. Please request a new code.',
+      });
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    console.log(`[AUTH] Password successfully reset for user ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Password has been successfully reset! You can now log in with your new password.',
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to reset password.' });
   }
 }
 

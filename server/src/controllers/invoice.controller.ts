@@ -65,6 +65,20 @@ export function serializeInvoice(doc: any) {
     billingCountry: customerSnapshot.billingCountry || customerSnapshot.billing_country || 'United Arab Emirates',
   };
 
+  const companySnapshot = obj.companySnapshot || obj.company_snapshot || {};
+  const serializedCompanySnapshot = {
+    legal_company_name: companySnapshot.legalCompanyName || companySnapshot.legal_company_name || 'Pixelflames',
+    legalCompanyName: companySnapshot.legalCompanyName || companySnapshot.legal_company_name || 'Pixelflames',
+    trading_name: companySnapshot.tradingName || companySnapshot.trading_name || 'Pixelflames Dubai',
+    tradingName: companySnapshot.tradingName || companySnapshot.trading_name || 'Pixelflames Dubai',
+    trn: companySnapshot.trn || '100234567800003',
+    address_line_1: companySnapshot.addressLine1 || companySnapshot.address_line_1 || 'Office 402, Business Bay Tower',
+    addressLine1: companySnapshot.addressLine1 || companySnapshot.address_line_1 || 'Office 402, Business Bay Tower',
+    city: companySnapshot.city || 'Dubai',
+    emirate: companySnapshot.emirate || 'DUBAI',
+    country: companySnapshot.country || 'United Arab Emirates',
+  };
+
   return {
     ...obj,
     id,
@@ -111,6 +125,8 @@ export function serializeInvoice(doc: any) {
     e_invoice_status: obj.eInvoiceStatus || obj.e_invoice_status || 'NOT_APPLICABLE',
     customer_snapshot: serializedSnapshot,
     customerSnapshot: serializedSnapshot,
+    company_snapshot: serializedCompanySnapshot,
+    companySnapshot: serializedCompanySnapshot,
     items,
     created_at: obj.createdAt ? new Date(obj.createdAt).toISOString() : new Date().toISOString(),
     updated_at: obj.updatedAt ? new Date(obj.updatedAt).toISOString() : new Date().toISOString(),

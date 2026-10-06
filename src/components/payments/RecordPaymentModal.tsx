@@ -57,6 +57,7 @@ export function RecordPaymentModal({
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [allowDuplicateOverride, setAllowDuplicateOverride] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Sync state on open or target invoice change
   useEffect(() => {
@@ -127,7 +128,7 @@ export function RecordPaymentModal({
     setProofDataUrl('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -151,27 +152,35 @@ export function RecordPaymentModal({
       return;
     }
 
-    const res = paymentService.recordPayment({
-      invoice_id: currentInvoice.id,
-      payment_method_id: paymentMethodId,
-      amount: payAmt,
-      payment_date: paymentDate,
-      reference_number: referenceNumber.trim() || undefined,
-      notes: notes.trim() || undefined,
-      payment_proof_name: proofFileName || undefined,
-      payment_proof_url: proofDataUrl || undefined,
-      allow_duplicate: allowDuplicateOverride,
-    });
+    setIsSubmitting(true);
+    try {
+      const res = await paymentService.recordPayment({
+        invoice_id: currentInvoice.id,
+        payment_method_id: paymentMethodId,
+        amount: payAmt,
+        payment_date: paymentDate,
+        reference_number: referenceNumber.trim() || undefined,
+        notes: notes.trim() || undefined,
+        payment_proof_name: proofFileName || undefined,
+        payment_proof_url: proofDataUrl || undefined,
+        allow_duplicate: allowDuplicateOverride,
+      });
 
-    if (res.success && res.data) {
-      onSuccess(res.data.id);
-      onOpenChange(false);
-    } else {
-      if (res.error?.includes('duplicate payment')) {
-        setDuplicateWarning(res.error);
+      if (res.success && res.data) {
+        await invoiceService.syncInvoices();
+        onSuccess(res.data.id);
+        onOpenChange(false);
       } else {
-        setError(res.error || 'Failed to record payment');
+        if (res.error?.includes('duplicate payment')) {
+          setDuplicateWarning(res.error);
+        } else {
+          setError(res.error || 'Failed to record payment');
+        }
       }
+    } catch (err: any) {
+      setError(err.message || 'Failed to post payment.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -214,9 +223,9 @@ export function RecordPaymentModal({
               variant="emerald"
               onClick={handleSubmit}
               className="font-semibold shadow-xs"
-              disabled={!currentInvoice}
+              disabled={!currentInvoice || isSubmitting}
             >
-              Confirm & Post Payment
+              {isSubmitting ? 'Posting Payment...' : 'Confirm & Post Payment'}
             </Button>
           </div>
         </div>

@@ -57,8 +57,16 @@ export function InvoiceDetailModal({
 
   if (!invoice) return null;
 
-  const payments = db.getPayments().filter((p) => p.invoice_id === invoice.id);
-  const creditNotes = db.getCreditNotes().filter((cn) => cn.invoice_id === invoice.id);
+  const defaultCompany = db.getCompanySettings();
+  const company = invoice.company_snapshot || defaultCompany;
+  const customer = invoice.customer_snapshot || {};
+
+  const payments = db
+    .getPayments()
+    .filter((p) => p.invoice_id === invoice.id || p.invoice_number === invoice.invoice_number);
+  const creditNotes = db
+    .getCreditNotes()
+    .filter((cn) => cn.invoice_id === invoice.id || cn.invoice_number === invoice.invoice_number);
 
   const handleIssueInvoice = async () => {
     const res = await invoiceService.issueInvoice(invoice.id);
@@ -246,14 +254,22 @@ export function InvoiceDetailModal({
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="text-[10px] font-bold uppercase text-slate-500">Supplier Details (Issuer)</div>
               <div className="font-bold text-sm text-slate-900">
-                {invoice.company_snapshot.legal_company_name}
+                {company?.legal_company_name || company?.trading_name || defaultCompany?.legal_company_name || 'Pixelflames'}
               </div>
               <div className="text-slate-600">
-                {invoice.company_snapshot.address_line_1}, {invoice.company_snapshot.city}, {invoice.company_snapshot.emirate}
+                {[
+                  company?.address_line_1 || defaultCompany?.address_line_1,
+                  company?.city || defaultCompany?.city,
+                  company?.emirate || defaultCompany?.emirate,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'Dubai, United Arab Emirates'}
               </div>
               <div className="flex items-center gap-1.5 pt-1 text-slate-800 font-medium">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                <span>Supplier TRN: <strong>{invoice.company_snapshot.trn}</strong></span>
+                <span>
+                  Supplier TRN: <strong>{company?.trn || defaultCompany?.trn || '100234567800003'}</strong>
+                </span>
               </div>
             </div>
 
@@ -261,19 +277,23 @@ export function InvoiceDetailModal({
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="text-[10px] font-bold uppercase text-slate-500">Customer Details (Billed To)</div>
               <div className="font-bold text-sm text-slate-900">
-                {invoice.customer_snapshot.company_name || invoice.customer_snapshot.contact_person}
+                {customer?.company_name || customer?.contact_person || 'Customer'}
               </div>
               <div className="text-slate-600">
-                {invoice.customer_snapshot.billing_address_line_1 || 'Address on file'}
-                {invoice.customer_snapshot.billing_city && `, ${invoice.customer_snapshot.billing_city}`}
-                {invoice.customer_snapshot.billing_emirate && `, ${invoice.customer_snapshot.billing_emirate}`}
+                {[
+                  customer?.billing_address_line_1,
+                  customer?.billing_city,
+                  customer?.billing_emirate,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'Address on file'}
               </div>
               <div className="flex items-center gap-1.5 pt-1 text-slate-800">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
                 <span>
                   Customer TRN:{' '}
-                  {invoice.customer_snapshot.trn ? (
-                    <strong>{invoice.customer_snapshot.trn}</strong>
+                  {customer?.trn ? (
+                    <strong>{customer.trn}</strong>
                   ) : (
                     <span className="italic text-slate-400">Not VAT Registered</span>
                   )}
@@ -327,7 +347,7 @@ export function InvoiceDetailModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
-                {invoice.items.map((it, idx) => (
+                {(invoice.items || []).map((it, idx) => (
                   <tr key={it.id || idx} className="hover:bg-slate-50/70">
                     <td className="px-3 py-2 text-slate-400 text-center">{idx + 1}</td>
                     <td className="px-3 py-2 font-sans font-medium text-slate-900">

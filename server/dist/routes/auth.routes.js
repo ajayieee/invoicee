@@ -7,6 +7,8 @@ const router = (0, express_1.Router)();
 router.get('/setup-status', auth_controller_js_1.getSetupStatus);
 router.post('/setup-admin', auth_controller_js_1.setupInitialAdmin);
 router.post('/login', auth_controller_js_1.login);
+router.post('/forgot-password', auth_controller_js_1.forgotPassword);
+router.post('/reset-password', auth_controller_js_1.resetPassword);
 router.post('/register', auth_middleware_js_1.authenticate, (0, auth_middleware_js_1.authorizeRoles)('OWNER'), auth_controller_js_1.register);
 router.get('/me', auth_middleware_js_1.authenticate, auth_controller_js_1.getMe);
 router.get('/users', auth_middleware_js_1.authenticate, auth_controller_js_1.getUsers);

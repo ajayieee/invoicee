@@ -116,9 +116,9 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
     const paymentDate = body.paymentDate || body.payment_date;
     const referenceNumber = body.referenceNumber || body.reference_number;
     const notes = body.notes;
-    const paymentProofUrl = body.paymentProofUrl;
-    const paymentProofName = body.paymentProofName;
-    const allowDuplicate = body.allowDuplicate;
+    const paymentProofUrl = body.paymentProofUrl || body.payment_proof_url;
+    const paymentProofName = body.paymentProofName || body.payment_proof_name;
+    const allowDuplicate = body.allowDuplicate ?? body.allow_duplicate ?? false;
 
     const payAmount = Number(amount);
     if (isNaN(payAmount) || payAmount <= 0) {
@@ -130,12 +130,14 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
     if (mongoose.Types.ObjectId.isValid(invoiceId)) {
       invoice = await Invoice.findById(invoiceId);
     }
-    if (!invoice) {
-      invoice = await Invoice.findOne({ invoiceNumber: invoiceId });
+    if (!invoice && invoiceId) {
+      invoice = await Invoice.findOne({
+        $or: [{ invoiceNumber: invoiceId }, { referenceNumber: invoiceId }],
+      });
     }
 
     if (!invoice) {
-      res.status(404).json({ success: false, error: 'Invoice not found.' });
+      res.status(404).json({ success: false, error: 'Target tax invoice not found in system.' });
       return;
     }
 
@@ -155,25 +157,50 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const PM_PRESETS: Record<string, { code: string; name: string }> = {
+      'pm-001': { code: 'BANK_TRANSFER', name: 'Bank Transfer (EFT)' },
+      'pm-002': { code: 'CHEQUE', name: 'Cheque' },
+      'pm-003': { code: 'CREDIT_CARD', name: 'Credit Card' },
+      'pm-004': { code: 'DEBIT_CARD', name: 'Debit Card' },
+      'pm-005': { code: 'CASH', name: 'Cash' },
+      'pm-006': { code: 'OTHER', name: 'Other' },
+    };
+
     let paymentMethod = null;
     if (mongoose.Types.ObjectId.isValid(paymentMethodId)) {
       paymentMethod = await PaymentMethod.findById(paymentMethodId);
     }
-    if (!paymentMethod) {
+
+    const preset = PM_PRESETS[paymentMethodId];
+    if (!paymentMethod && preset) {
+      paymentMethod = await PaymentMethod.findOne({
+        $or: [{ code: preset.code }, { name: preset.name }],
+      });
+      if (!paymentMethod) {
+        paymentMethod = await PaymentMethod.create({
+          organizationId: invoice.organizationId || 'org_pixelflames_001',
+          name: preset.name,
+          code: preset.code as any,
+          isActive: true,
+        });
+      }
+    }
+
+    if (!paymentMethod && paymentMethodId) {
       paymentMethod = await PaymentMethod.findOne({
         $or: [{ code: paymentMethodId }, { name: paymentMethodId }],
       });
     }
+
     if (!paymentMethod) {
-      // Find default or first payment method
       paymentMethod = await PaymentMethod.findOne();
     }
+
     if (!paymentMethod) {
-      // Create a default payment method if none exists
       paymentMethod = await PaymentMethod.create({
-        name: 'Bank Transfer',
+        organizationId: invoice.organizationId || 'org_pixelflames_001',
+        name: 'Bank Transfer (EFT)',
         code: 'BANK_TRANSFER',
-        type: 'BANK_TRANSFER',
         isActive: true,
       });
     }
@@ -215,12 +242,17 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
     const year = new Date().getFullYear();
     const paymentNumber = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
 
+    const customerDisplayName =
+      invoice.customerSnapshot?.companyName ||
+      invoice.customerSnapshot?.contactPerson ||
+      'Customer';
+
     const newPayment = await Payment.create({
       organizationId: invoice.organizationId,
       invoiceId: invoice._id,
       invoiceNumber: invoice.invoiceNumber,
       customerId: invoice.customerId,
-      customerName: invoice.customerSnapshot.companyName || invoice.customerSnapshot.contactPerson,
+      customerName: customerDisplayName,
       paymentNumber,
       sequenceNumber: nextSeq,
       paymentDate: paymentDate || new Date().toISOString().split('T')[0],

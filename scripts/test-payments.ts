@@ -83,7 +83,7 @@ async function runPaymentTestSuite() {
   assert(testInvoice.status === 'ISSUED', 'INVOICE: Initial status is ISSUED');
 
   // 2.1: Payment 1 (Partial payment of 4,000 AED via Wire)
-  const pay1Res = paymentService.recordPayment({
+  const pay1Res = await paymentService.recordPayment({
     invoice_id: testInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 4000,
@@ -106,7 +106,7 @@ async function runPaymentTestSuite() {
   assert(invAfterPay1.status === 'PARTIALLY_PAID', 'STATUS 1: Status transitioned to PARTIALLY_PAID');
 
   // 2.2: Payment 2 (Second partial payment of 3,500 AED via Cheque)
-  const pay2Res = paymentService.recordPayment({
+  const pay2Res = await paymentService.recordPayment({
     invoice_id: testInvoice.id,
     payment_method_id: chequeMethod.id,
     amount: 3500,
@@ -122,7 +122,7 @@ async function runPaymentTestSuite() {
   assert(invAfterPay2.status === 'PARTIALLY_PAID', 'STATUS 2: Status remains PARTIALLY_PAID');
 
   // 2.3: Payment 3 (Final settlement of 3,000 AED via Credit Card)
-  const pay3Res = paymentService.recordPayment({
+  const pay3Res = await paymentService.recordPayment({
     invoice_id: testInvoice.id,
     payment_method_id: cardMethod.id,
     amount: 3000,
@@ -143,7 +143,7 @@ async function runPaymentTestSuite() {
   console.log('\n🔹 [3/6] Testing Accidental Duplicate Payment Prevention & Overpayment Safeguards...');
 
   // 3.1: Anti-Overpayment Guard on fully paid invoice
-  const overpayAttempt = paymentService.recordPayment({
+  const overpayAttempt = await paymentService.recordPayment({
     invoice_id: testInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 500,
@@ -176,7 +176,7 @@ async function runPaymentTestSuite() {
   const dupInvoice = dupTestInvRes.data!;
 
   // Record initial payment of 5,000 with reference 'WIRE-TXN-777'
-  const firstPmtRes = paymentService.recordPayment({
+  const firstPmtRes = await paymentService.recordPayment({
     invoice_id: dupInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 5000,
@@ -187,7 +187,7 @@ async function runPaymentTestSuite() {
   assert(firstPmtRes.success, 'DUPLICATE BASE: First payment of 5,000 AED posted');
 
   // Attempt 1: Duplicate with same reference number
-  const dupRefAttempt = paymentService.recordPayment({
+  const dupRefAttempt = await paymentService.recordPayment({
     invoice_id: dupInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 5000,
@@ -201,7 +201,7 @@ async function runPaymentTestSuite() {
   );
 
   // Attempt 2: Duplicate with same amount on same date
-  const dupAmountAttempt = paymentService.recordPayment({
+  const dupAmountAttempt = await paymentService.recordPayment({
     invoice_id: dupInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 5000, // Same amount on same date
@@ -214,7 +214,7 @@ async function runPaymentTestSuite() {
   );
 
   // Intentional Override: Allow duplicate when flag is explicitly provided
-  const overrideRes = paymentService.recordPayment({
+  const overrideRes = await paymentService.recordPayment({
     invoice_id: dupInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 5000,
@@ -250,7 +250,7 @@ async function runPaymentTestSuite() {
   console.log('\n🔹 [5/6] Testing Payment Reversal (Audit Retained, Never Deleted, Balance Reopened)...');
 
   // Reverse payment 3 (3,000 AED) on testInvoice
-  const revRes = paymentService.reversePayment(pay3Res.data!.id, 'Client payment bounced by bank');
+  const revRes = await paymentService.reversePayment(pay3Res.data!.id, 'Client payment bounced by bank');
   assert(revRes.success, 'REVERSAL: Payment successfully reversed');
   const reversedPay = paymentService.getPaymentById(pay3Res.data!.id)!;
   assert(reversedPay.status === 'REVERSED', 'REVERSAL: Payment status transitioned to REVERSED');
@@ -264,7 +264,7 @@ async function runPaymentTestSuite() {
   assert(invReopened.status === 'PARTIALLY_PAID', 'REVERSAL REOPEN: Invoice status restored to PARTIALLY_PAID');
 
   // Prohibit double reversal
-  const doubleRev = paymentService.reversePayment(pay3Res.data!.id, 'Second reversal attempt');
+  const doubleRev = await paymentService.reversePayment(pay3Res.data!.id, 'Second reversal attempt');
   assert(
     Boolean(!doubleRev.success && doubleRev.error?.includes('already been reversed')),
     'REVERSAL GUARD: Prohibits reversing an already reversed payment'
@@ -279,7 +279,7 @@ async function runPaymentTestSuite() {
   assert(metricsBefore.outstandingReceivables > 0, 'DASHBOARD: Computes outstanding receivables');
 
   // Record a payment of 1,000 AED and verify dashboard metrics reflect it
-  const dashPay = paymentService.recordPayment({
+  const dashPay = await paymentService.recordPayment({
     invoice_id: dupInvoice.id,
     payment_method_id: wireMethod.id,
     amount: 1000,

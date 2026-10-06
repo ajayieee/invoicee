@@ -222,6 +222,18 @@ class Repository {
     return invoice;
   }
 
+  public upsertPayment(payment: Payment): Payment {
+    const payId = payment.id || (payment as any)._id;
+    const idx = this.store.payments.findIndex((p) => p.id === payId || (p as any)._id === payId);
+    if (idx !== -1) {
+      this.store.payments[idx] = { ...this.store.payments[idx], ...payment, id: payId };
+    } else {
+      this.store.payments.unshift({ ...payment, id: payId });
+    }
+    this.persist();
+    return payment;
+  }
+
   // --- Audit Trail ---
   public logAudit(
     entityType: string,

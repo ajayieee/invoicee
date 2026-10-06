@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { ResetPasswordModal } from '@/components/auth/ResetPasswordModal';
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -14,6 +15,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +97,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 <label className="block text-xs font-semibold text-slate-300">
                   Password
                 </label>
+                <button
+                  type="button"
+                  onClick={() => setResetModalOpen(true)}
+                  className="text-xs font-medium text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer"
+                >
+                  Forgot Password?
+                </button>
               </div>
               <div className="relative">
                 <Lock className="h-4 w-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -157,6 +166,16 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <p className="text-slate-600">Enterprise Access Gateway • 256-bit TLS Encrypted Session</p>
         </div>
       </div>
+
+      <ResetPasswordModal
+        open={resetModalOpen}
+        onOpenChange={setResetModalOpen}
+        defaultEmail={email}
+        onPasswordResetSuccess={(resetEmail) => {
+          setEmail(resetEmail);
+          setPassword('');
+        }}
+      />
     </div>
   );
 }

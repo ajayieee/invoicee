@@ -52,6 +52,8 @@ const UserSchema = new mongoose_1.Schema({
     organizationId: { type: String, required: true, default: 'org_pixelflames_001' },
     avatarColor: { type: String, default: 'bg-emerald-600' },
     isActive: { type: Boolean, default: true },
+    resetPasswordCode: { type: String },
+    resetPasswordExpires: { type: Date },
 }, {
     timestamps: true,
 });

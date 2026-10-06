@@ -55,7 +55,8 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
     isDraft = inv.status === 'DRAFT';
     currency = inv.currency || 'AED';
     exchangeRate = inv.exchange_rate || 1.0;
-    customerTrn = inv.customer_snapshot.trn || '';
+    const invCust = inv.customer_snapshot || {};
+    customerTrn = invCust.trn || '';
 
     // Article 59(5): Simplified Tax Invoice if consideration <= 10,000 AED and not registered, or B2C
     isSimplified = !isDraft && (!customerTrn || !customerTrn.trim()) && inv.grand_total <= 10000;
@@ -76,8 +77,8 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
     docDate = inv.invoice_date;
     supplyDate = inv.supply_date;
     dueDate = inv.due_date;
-    customerName = inv.customer_snapshot.company_name || inv.customer_snapshot.contact_person || 'Client';
-    customerAddress = `${inv.customer_snapshot.billing_address_line_1 || ''}, ${inv.customer_snapshot.billing_city || ''}, ${inv.customer_snapshot.billing_emirate || ''}`;
+    customerName = invCust.company_name || invCust.contact_person || 'Client';
+    customerAddress = `${invCust.billing_address_line_1 || ''}, ${invCust.billing_city || ''}, ${invCust.billing_emirate || ''}`;
     items = inv.items;
     subtotal = inv.subtotal_net;
     discount = inv.discount_amount;
@@ -119,8 +120,9 @@ export function PrintableDocument({ docType, docId, onBack }: PrintableDocumentP
     refundStatus = cn.refund_status ? cn.refund_status.replace(/_/g, ' ') : 'APPLIED';
     docHash = cn.e_invoice_hash || '';
     customerName = cn.customer_name || 'Client';
-    customerTrn = cn.customer_snapshot.trn || '';
-    customerAddress = `${cn.customer_snapshot.billing_address_line_1 || ''}, ${cn.customer_snapshot.billing_city || ''}, ${cn.customer_snapshot.billing_emirate || ''}`;
+    const cnCust = cn.customer_snapshot || {};
+    customerTrn = cnCust.trn || '';
+    customerAddress = `${cnCust.billing_address_line_1 || ''}, ${cnCust.billing_city || ''}, ${cnCust.billing_emirate || ''}`;
     items = cn.items;
     subtotal = cn.subtotal_net;
     discount = cn.discount_amount;

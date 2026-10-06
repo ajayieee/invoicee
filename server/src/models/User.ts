@@ -12,6 +12,8 @@ export interface IUser extends Document {
   organizationId: string;
   avatarColor: string;
   isActive: boolean;
+  resetPasswordCode?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidate: string): Promise<boolean>;
@@ -31,6 +33,8 @@ const UserSchema = new Schema<IUser>(
     organizationId: { type: String, required: true, default: 'org_pixelflames_001' },
     avatarColor: { type: String, default: 'bg-emerald-600' },
     isActive: { type: Boolean, default: true },
+    resetPasswordCode: { type: String },
+    resetPasswordExpires: { type: Date },
   },
   {
     timestamps: true,

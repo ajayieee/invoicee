@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CreditCard,
   Plus,
@@ -54,6 +54,15 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
   const [reversalError, setReversalError] = useState('');
   const [successBanner, setSuccessBanner] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    paymentService.syncPayments().then(() => setNonce((n) => n + 1));
+
+    const handleStoreUpdate = () => setNonce((n) => n + 1);
+    window.addEventListener('database-store-updated', handleStoreUpdate);
+    return () => window.removeEventListener('database-store-updated', handleStoreUpdate);
+  }, []);
 
   const query: PaymentQuery = {
     search: search.trim() || undefined,
@@ -69,19 +78,20 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
   const paginatedResult = paymentService.getPayments(query);
   const payments = paginatedResult.items;
 
-  const refreshList = () => {
-    // triggers re-render via query state
+  const refreshList = async () => {
+    await paymentService.syncPayments();
+    setNonce((n) => n + 1);
     setPage((p) => p);
   };
 
-  const handleExecuteReversal = () => {
+  const handleExecuteReversal = async () => {
     if (!reversalTarget) return;
     if (!reversalReason.trim()) {
       setReversalError('A justification reason is required to reverse a financial payment.');
       return;
     }
 
-    const res = paymentService.reversePayment(reversalTarget.id, reversalReason.trim());
+    const res = await paymentService.reversePayment(reversalTarget.id, reversalReason.trim());
     if (res.success) {
       setSuccessBanner(
         `Payment ${reversalTarget.payment_number} successfully reversed. Invoice ${
@@ -91,7 +101,7 @@ export function PaymentsView({ onViewInvoice }: PaymentsViewProps) {
       setReversalTarget(null);
       setReversalReason('');
       setReversalError('');
-      refreshList();
+      await refreshList();
       setTimeout(() => setSuccessBanner(''), 6000);
     } else {
       setReversalError(res.error || 'Failed to reverse payment');
