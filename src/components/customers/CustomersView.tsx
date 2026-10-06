@@ -28,6 +28,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/SkeletonTable';
 import { FormError, AlertBanner } from '@/components/ui/FormError';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { Customer, CustomerType, CustomerRelation, UAEEmirate } from '@/types/database';
 import { customerService, Customer360Summary } from '@/services/customer.service';
 import { useAuth } from '@/context/AuthContext';
@@ -82,6 +83,10 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
   // Errors & Feedback
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [alertFeedback, setAlertFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  // Delete Confirmation State
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -209,27 +214,34 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
     }
   };
 
-  const handleDelete = async (c: Customer) => {
-    const displayName = c.company_name || c.contact_person;
-    if (!confirm(`Are you sure you want to delete account "${displayName}"?`)) {
-      return;
-    }
+  const handleDeleteClick = (c: Customer) => {
+    setCustomerToDelete(c);
+  };
 
-    const res = await customerService.deleteCustomer(c.id, user.name);
-    if (!res.success) {
+  const handleConfirmDelete = async () => {
+    if (!customerToDelete) return;
+    const displayName = customerToDelete.company_name || customerToDelete.contact_person;
+    setIsDeleting(true);
+    try {
+      const res = await customerService.deleteCustomer(customerToDelete.id, user.name);
+      if (!res.success) {
+        setAlertFeedback({
+          type: 'error',
+          message: res.error || 'Failed to delete customer.',
+        });
+        return;
+      }
+
       setAlertFeedback({
-        type: 'error',
-        message: res.error || 'Failed to delete customer.',
+        type: 'success',
+        message: `Account "${displayName}" deleted successfully.`,
       });
-      return;
+      setTimeout(() => setAlertFeedback(null), 4000);
+      await fetchCustomers();
+      setCustomerToDelete(null);
+    } finally {
+      setIsDeleting(false);
     }
-
-    setAlertFeedback({
-      type: 'success',
-      message: `Account "${displayName}" deleted successfully.`,
-    });
-    setTimeout(() => setAlertFeedback(null), 4000);
-    await fetchCustomers();
   };
 
   return (
@@ -490,7 +502,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                                 <Power className="h-3.5 w-3.5" />
                               </button>
                               <button
-                                onClick={() => handleDelete(c)}
+                                onClick={() => handleDeleteClick(c)}
                                 title="Delete account (checked for financial links)"
                                 className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                               >
@@ -920,6 +932,20 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
           </div>
         </div>
       </Dialog>
+
+      {/* Custom Confirmation Delete Modal */}
+      <ConfirmDeleteModal
+        open={!!customerToDelete}
+        onOpenChange={(open) => {
+          if (!open) setCustomerToDelete(null);
+        }}
+        title="Confirm Delete"
+        itemType="customer account"
+        itemName={customerToDelete ? (customerToDelete.company_name || customerToDelete.contact_person) : undefined}
+        description="This action cannot be undone. Customer accounts with active invoices, quotations, or ledger transactions are protected against deletion."
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

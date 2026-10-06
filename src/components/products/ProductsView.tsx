@@ -24,6 +24,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/SkeletonTable';
 import { FormError, AlertBanner } from '@/components/ui/FormError';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { Product, VatTreatment, ProductCategory, VatRate } from '@/types/database';
 import { productService, ProductWithMargin } from '@/services/product.service';
 import { useAuth } from '@/context/AuthContext';
@@ -71,6 +72,10 @@ export function ProductsView() {
   // Error & Feedback State
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [alertFeedback, setAlertFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  // Delete Confirmation State
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProducts = () => {
     setLoading(true);
@@ -163,26 +168,34 @@ export function ProductsView() {
     fetchProducts();
   };
 
-  const handleDelete = (p: Product) => {
-    if (!confirm(`Are you sure you want to delete "${p.name}"?`)) {
-      return;
-    }
+  const handleDeleteClick = (p: Product) => {
+    setProductToDelete(p);
+  };
 
-    const res = productService.deleteProduct(p.id, user.name);
-    if (!res.success) {
+  const handleConfirmDelete = () => {
+    if (!productToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const res = productService.deleteProduct(productToDelete.id, user.name);
+      if (!res.success) {
+        setAlertFeedback({
+          type: 'error',
+          message: res.error || 'Failed to delete product.',
+        });
+        return;
+      }
+
       setAlertFeedback({
-        type: 'error',
-        message: res.error || 'Failed to delete product.',
+        type: 'success',
+        message: `Product "${productToDelete.name}" deleted successfully.`,
       });
-      return;
+      setTimeout(() => setAlertFeedback(null), 4000);
+      fetchProducts();
+      setProductToDelete(null);
+    } finally {
+      setIsDeleting(false);
     }
-
-    setAlertFeedback({
-      type: 'success',
-      message: `Product "${p.name}" deleted successfully.`,
-    });
-    setTimeout(() => setAlertFeedback(null), 4000);
-    fetchProducts();
   };
 
   const getVatTreatmentBadge = (treatment?: VatTreatment, rate?: number) => {
@@ -414,7 +427,7 @@ export function ProductsView() {
                                 <Power className="h-3.5 w-3.5" />
                               </button>
                               <button
-                                onClick={() => handleDelete(p)}
+                                onClick={() => handleDeleteClick(p)}
                                 title="Delete item (safeguarded against invoice deletion)"
                                 className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                               >
@@ -587,6 +600,20 @@ export function ProductsView() {
           </div>
         </div>
       </Dialog>
+
+      {/* Custom Confirmation Delete Modal */}
+      <ConfirmDeleteModal
+        open={!!productToDelete}
+        onOpenChange={(open) => {
+          if (!open) setProductToDelete(null);
+        }}
+        title="Confirm Delete"
+        itemType="product or service"
+        itemName={productToDelete?.name}
+        description="This action cannot be undone. Products referenced in existing invoices or quotations are safeguarded against deletion."
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }
