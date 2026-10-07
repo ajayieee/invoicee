@@ -125,7 +125,7 @@ function AppHomeContent() {
           )}
 
           {/* Body Canvas */}
-          <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto" key={refreshKey}>
+          <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto [scrollbar-gutter:stable]" key={refreshKey}>
             {printDoc ? (
               <PrintableDocument
                 docType={printDoc.docType}

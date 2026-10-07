@@ -189,6 +189,40 @@ class Repository {
         console.warn('[DB] Could not sync payments from MongoDB Atlas:', e);
       }
 
+      // Fetch products from MongoDB Atlas
+      try {
+        const prodRes = await fetch(`${API_BASE}/products?pageSize=1000`, { headers });
+        if (prodRes.ok) {
+          const prodData = await prodRes.json();
+          if (prodData.success && Array.isArray(prodData.items)) {
+            const atlasProducts = prodData.items;
+            if (atlasProducts.length > 0) {
+              this.store.products = atlasProducts;
+              changed = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[DB] Could not sync products from MongoDB Atlas:', e);
+      }
+
+      // Fetch quotes from MongoDB Atlas
+      try {
+        const quoRes = await fetch(`${API_BASE}/quotes?pageSize=1000`, { headers });
+        if (quoRes.ok) {
+          const quoData = await quoRes.json();
+          if (quoData.success && Array.isArray(quoData.items)) {
+            const atlasQuotes = quoData.items;
+            if (atlasQuotes.length > 0) {
+              this.store.quotes = atlasQuotes;
+              changed = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[DB] Could not sync quotes from MongoDB Atlas:', e);
+      }
+
       if (changed) {
         this.persist();
         window.dispatchEvent(new CustomEvent('database-store-updated'));
@@ -208,6 +242,30 @@ class Repository {
     }
     this.persist();
     return customer;
+  }
+
+  public upsertProduct(product: Product): Product {
+    const prodId = product.id || (product as any)._id;
+    const idx = this.store.products.findIndex((p) => p.id === prodId || (p as any)._id === prodId);
+    if (idx !== -1) {
+      this.store.products[idx] = { ...this.store.products[idx], ...product, id: prodId };
+    } else {
+      this.store.products.unshift({ ...product, id: prodId });
+    }
+    this.persist();
+    return product;
+  }
+
+  public upsertQuote(quote: Quote): Quote {
+    const quoId = quote.id || (quote as any)._id;
+    const idx = this.store.quotes.findIndex((q) => q.id === quoId || (q as any)._id === quoId);
+    if (idx !== -1) {
+      this.store.quotes[idx] = { ...this.store.quotes[idx], ...quote, id: quoId };
+    } else {
+      this.store.quotes.unshift({ ...quote, id: quoId });
+    }
+    this.persist();
+    return quote;
   }
 
   public upsertInvoice(invoice: Invoice): Invoice {

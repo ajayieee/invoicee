@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   Search,
   Plus,
-  RotateCcw,
   ChevronDown,
   FileText,
   Receipt,
@@ -29,7 +28,7 @@ interface TopBarProps {
   onQuickAction: (action: 'NEW_QUOTE' | 'NEW_INVOICE' | 'RECORD_PAYMENT' | 'NEW_CUSTOMER') => void;
   onSearchChange: (query: string) => void;
   searchQuery: string;
-  onResetData: () => void;
+  onResetData?: () => void;
   onToggleMobileMenu?: () => void;
 }
 
@@ -97,19 +96,6 @@ export function TopBar({
             TRN: {organization.trn.slice(-4)}
           </span>
         </div>
-
-        {/* Reset Demo Data Button */}
-        <button
-          onClick={() => {
-            if (confirm('Reset application data to initial UAE FTA compliant seed state?')) {
-              onResetData();
-            }
-          }}
-          title="Reset database to initial UAE demo state"
-          className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
 
         {/* Quick Action Dropdown */}
         <div className="relative">

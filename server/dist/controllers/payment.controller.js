@@ -110,9 +110,9 @@ async function recordPayment(req, res) {
         const paymentDate = body.paymentDate || body.payment_date;
         const referenceNumber = body.referenceNumber || body.reference_number;
         const notes = body.notes;
-        const paymentProofUrl = body.paymentProofUrl;
-        const paymentProofName = body.paymentProofName;
-        const allowDuplicate = body.allowDuplicate;
+        const paymentProofUrl = body.paymentProofUrl || body.payment_proof_url;
+        const paymentProofName = body.paymentProofName || body.payment_proof_name;
+        const allowDuplicate = body.allowDuplicate ?? body.allow_duplicate ?? false;
         const payAmount = Number(amount);
         if (isNaN(payAmount) || payAmount <= 0) {
             res.status(400).json({ success: false, error: 'Payment amount must be greater than zero.' });
@@ -122,11 +122,13 @@ async function recordPayment(req, res) {
         if (mongoose_1.default.Types.ObjectId.isValid(invoiceId)) {
             invoice = await Invoice_js_1.Invoice.findById(invoiceId);
         }
-        if (!invoice) {
-            invoice = await Invoice_js_1.Invoice.findOne({ invoiceNumber: invoiceId });
+        if (!invoice && invoiceId) {
+            invoice = await Invoice_js_1.Invoice.findOne({
+                $or: [{ invoiceNumber: invoiceId }, { referenceNumber: invoiceId }],
+            });
         }
         if (!invoice) {
-            res.status(404).json({ success: false, error: 'Invoice not found.' });
+            res.status(404).json({ success: false, error: 'Target tax invoice not found in system.' });
             return;
         }
         if (invoice.status === 'CANCELLED' || invoice.status === 'DRAFT') {
@@ -143,25 +145,45 @@ async function recordPayment(req, res) {
             });
             return;
         }
+        const PM_PRESETS = {
+            'pm-001': { code: 'BANK_TRANSFER', name: 'Bank Transfer (EFT)' },
+            'pm-002': { code: 'CHEQUE', name: 'Cheque' },
+            'pm-003': { code: 'CREDIT_CARD', name: 'Credit Card' },
+            'pm-004': { code: 'DEBIT_CARD', name: 'Debit Card' },
+            'pm-005': { code: 'CASH', name: 'Cash' },
+            'pm-006': { code: 'OTHER', name: 'Other' },
+        };
         let paymentMethod = null;
         if (mongoose_1.default.Types.ObjectId.isValid(paymentMethodId)) {
             paymentMethod = await PaymentMethod_js_1.PaymentMethod.findById(paymentMethodId);
         }
-        if (!paymentMethod) {
+        const preset = PM_PRESETS[paymentMethodId];
+        if (!paymentMethod && preset) {
+            paymentMethod = await PaymentMethod_js_1.PaymentMethod.findOne({
+                $or: [{ code: preset.code }, { name: preset.name }],
+            });
+            if (!paymentMethod) {
+                paymentMethod = await PaymentMethod_js_1.PaymentMethod.create({
+                    organizationId: invoice.organizationId || 'org_pixelflames_001',
+                    name: preset.name,
+                    code: preset.code,
+                    isActive: true,
+                });
+            }
+        }
+        if (!paymentMethod && paymentMethodId) {
             paymentMethod = await PaymentMethod_js_1.PaymentMethod.findOne({
                 $or: [{ code: paymentMethodId }, { name: paymentMethodId }],
             });
         }
         if (!paymentMethod) {
-            // Find default or first payment method
             paymentMethod = await PaymentMethod_js_1.PaymentMethod.findOne();
         }
         if (!paymentMethod) {
-            // Create a default payment method if none exists
             paymentMethod = await PaymentMethod_js_1.PaymentMethod.create({
-                name: 'Bank Transfer',
+                organizationId: invoice.organizationId || 'org_pixelflames_001',
+                name: 'Bank Transfer (EFT)',
                 code: 'BANK_TRANSFER',
-                type: 'BANK_TRANSFER',
                 isActive: true,
             });
         }
@@ -194,12 +216,15 @@ async function recordPayment(req, res) {
         const nextSeq = (lastPayment?.sequenceNumber || 0) + 1;
         const year = new Date().getFullYear();
         const paymentNumber = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
+        const customerDisplayName = invoice.customerSnapshot?.companyName ||
+            invoice.customerSnapshot?.contactPerson ||
+            'Customer';
         const newPayment = await Payment_js_1.Payment.create({
             organizationId: invoice.organizationId,
             invoiceId: invoice._id,
             invoiceNumber: invoice.invoiceNumber,
             customerId: invoice.customerId,
-            customerName: invoice.customerSnapshot.companyName || invoice.customerSnapshot.contactPerson,
+            customerName: customerDisplayName,
             paymentNumber,
             sequenceNumber: nextSeq,
             paymentDate: paymentDate || new Date().toISOString().split('T')[0],

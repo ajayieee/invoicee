@@ -2,6 +2,7 @@ import { Product, ProductCategory, VatRate, VatTreatment } from '@/types/databas
 import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
 import { ValidationRules } from '@/lib/validation/rules';
+import { apiClient } from '@/lib/api/client';
 
 export interface ProductQuery {
   search?: string;
@@ -30,6 +31,27 @@ export interface ProductWithMargin extends Product {
 }
 
 class ProductService {
+  /**
+   * Synchronize all products from MongoDB Atlas Express API directly into local store.
+   */
+  async syncProducts(): Promise<Product[]> {
+    try {
+      const res = await apiClient.get<{ success: boolean; items: Product[] }>('/products', {
+        pageSize: 1000,
+      });
+
+      if (res && res.success && Array.isArray(res.items)) {
+        res.items.forEach((p) => {
+          db.upsertProduct(p);
+        });
+        return res.items;
+      }
+    } catch (err) {
+      console.warn('[ProductService] Atlas sync failed, using cached store:', err);
+    }
+    return db.getProducts();
+  }
+
   getCategories(): ProductCategory[] {
     return db.getProductCategories();
   }
@@ -197,6 +219,31 @@ class ProductService {
         is_active: data.is_active ?? true,
       });
 
+      // Background cloud sync to MongoDB Atlas
+      apiClient
+        .post<{ success: boolean; data: Product }>('/products', {
+          name: saved.name,
+          sku: saved.sku,
+          description: saved.description,
+          categoryId: saved.category_id,
+          categoryName: saved.category_name,
+          unit: saved.unit,
+          costPrice: saved.cost_price,
+          sellingPrice: saved.selling_price,
+          vatRateId: saved.vat_rate_id,
+          vatRatePercentage: saved.vat_rate_percentage,
+          vatTreatment: saved.vat_treatment,
+          isActive: saved.is_active,
+        })
+        .then((cloudRes) => {
+          if (cloudRes && cloudRes.success && cloudRes.data) {
+            db.upsertProduct(cloudRes.data);
+          }
+        })
+        .catch((e) => {
+          console.warn('[ProductService] Cloud create background error:', e.message);
+        });
+
       return {
         success: true,
         data: saved,
@@ -250,6 +297,26 @@ class ProductService {
         is_active: data.is_active ?? existing.is_active,
       });
 
+      // Background cloud sync to MongoDB Atlas
+      apiClient
+        .put<{ success: boolean; data: Product }>(`/products/${id}`, {
+          name: saved.name,
+          sku: saved.sku,
+          description: saved.description,
+          categoryId: saved.category_id,
+          categoryName: saved.category_name,
+          unit: saved.unit,
+          costPrice: saved.cost_price,
+          sellingPrice: saved.selling_price,
+          vatRateId: saved.vat_rate_id,
+          vatRatePercentage: saved.vat_rate_percentage,
+          vatTreatment: saved.vat_treatment,
+          isActive: saved.is_active,
+        })
+        .catch((e) => {
+          console.warn('[ProductService] Cloud update background error:', e.message);
+        });
+
       return {
         success: true,
         data: saved,
@@ -288,6 +355,12 @@ class ProductService {
 
     try {
       db.deleteProduct(id);
+
+      // Background cloud delete in MongoDB Atlas
+      apiClient.delete(`/products/${id}`).catch((e) => {
+        console.warn('[ProductService] Cloud delete background error:', e.message);
+      });
+
       return {
         success: true,
         data: true,
@@ -310,6 +383,14 @@ class ProductService {
       ...existing,
       is_active: !existing.is_active,
     });
+
+    apiClient
+      .put<{ success: boolean; data: Product }>(`/products/${id}`, {
+        isActive: updated.is_active,
+      })
+      .catch((e) => {
+        console.warn('[ProductService] Cloud toggleActive error:', e.message);
+      });
 
     return { success: true, data: updated };
   }

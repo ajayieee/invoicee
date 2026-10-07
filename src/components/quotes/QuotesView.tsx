@@ -66,8 +66,13 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
   // Feedback Banner
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
-  const fetchQuotes = () => {
+  const fetchQuotes = async () => {
     setLoading(true);
+    try {
+      await quoteService.syncQuotes();
+    } catch (e) {
+      console.warn('Quote cloud sync failed:', e);
+    }
     const result = quoteService.getQuotes({
       search,
       status: statusFilter,

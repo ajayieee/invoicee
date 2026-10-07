@@ -103,7 +103,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onCloseMobile}
-            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors ml-2 cursor-pointer"
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors ml-2 cursor-pointer outline-none focus:outline-none"
             aria-label="Close Navigation"
           >
             <X className="h-5 w-5" />
@@ -124,26 +124,34 @@ export function Sidebar({
           return (
             <button
               key={item.id}
+              type="button"
               disabled={isDisabled}
               onClick={() => handleTabClick(item.id)}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all group cursor-pointer',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium border border-transparent transition-colors duration-150 group cursor-pointer outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50 select-none',
                 isDisabled && 'opacity-40 cursor-not-allowed hover:bg-transparent',
                 isActive
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/20 font-semibold'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900'
+                  ? 'bg-emerald-600/15 text-emerald-400 border-emerald-500/20 font-semibold'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-transparent'
               )}
             >
               <div className="flex items-center gap-3">
                 <Icon
                   className={cn(
-                    'h-4 w-4 transition-colors',
+                    'h-4 w-4 transition-colors duration-150',
                     isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-200'
                   )}
                 />
                 <span>{item.label}</span>
               </div>
-              {isActive && <ChevronRight className="h-3.5 w-3.5 text-emerald-400" />}
+              <ChevronRight
+                className={cn(
+                  'h-3.5 w-3.5 transition-all duration-150',
+                  isActive
+                    ? 'opacity-100 translate-x-0 text-emerald-400'
+                    : 'opacity-0 -translate-x-1 text-transparent pointer-events-none'
+                )}
+              />
             </button>
           );
         })}

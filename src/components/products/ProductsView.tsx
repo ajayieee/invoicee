@@ -77,8 +77,13 @@ export function ProductsView() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchProducts = () => {
+  const fetchProducts = async () => {
     setLoading(true);
+    try {
+      await productService.syncProducts();
+    } catch (e) {
+      console.warn('Product cloud sync failed:', e);
+    }
     const result = productService.getProducts({
       search,
       categoryId: selectedCategory,

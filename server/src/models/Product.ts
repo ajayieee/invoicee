@@ -6,9 +6,14 @@ export interface IProduct extends Document {
   name: string;
   sku?: string;
   description?: string;
+  categoryId?: string;
+  categoryName?: string;
   unitPrice: number;
+  costPrice?: number;
+  sellingPrice?: number;
   unit: string;
-  vatRateId?: mongoose.Types.ObjectId;
+  vatRateId?: string;
+  vatRatePercentage?: number;
   vatTreatment: VatTreatment;
   isActive: boolean;
 }
@@ -19,9 +24,14 @@ const ProductSchema = new Schema<IProduct>(
     name: { type: String, required: true, trim: true },
     sku: { type: String, trim: true },
     description: String,
-    unitPrice: { type: Number, required: true, min: 0 },
+    categoryId: String,
+    categoryName: String,
+    unitPrice: { type: Number, default: 0, min: 0 },
+    costPrice: { type: Number, default: 0, min: 0 },
+    sellingPrice: { type: Number, default: 0, min: 0 },
     unit: { type: String, default: 'Unit' },
-    vatRateId: { type: Schema.Types.ObjectId, ref: 'VatRate' },
+    vatRateId: { type: String, default: 'vat-001' },
+    vatRatePercentage: { type: Number, default: 5 },
     vatTreatment: {
       type: String,
       enum: ['STANDARD_RATED', 'ZERO_RATED', 'EXEMPT', 'OUT_OF_SCOPE', 'REVERSE_CHARGE'],

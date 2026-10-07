@@ -5,6 +5,7 @@ import paymentRoutes from './payment.routes.js';
 import customerRoutes from './customer.routes.js';
 import creditNoteRoutes from './creditNote.routes.js';
 import quoteRoutes from './quote.routes.js';
+import productRoutes from './product.routes.js';
 import reportRoutes from './report.routes.js';
 import settingsRoutes from './settings.routes.js';
 
@@ -16,6 +17,7 @@ apiRouter.use('/payments', paymentRoutes);
 apiRouter.use('/customers', customerRoutes);
 apiRouter.use('/credit-notes', creditNoteRoutes);
 apiRouter.use('/quotes', quoteRoutes);
+apiRouter.use('/products', productRoutes);
 apiRouter.use('/reports', reportRoutes);
 apiRouter.use('/settings', settingsRoutes);
 

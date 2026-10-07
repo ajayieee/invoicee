@@ -11,6 +11,7 @@ import { PaginatedResult, ServiceResponse } from '@/types/service';
 import { db } from '@/lib/db/repository';
 import { VatCalculator, LineItemInput, CalculationResult } from '@/lib/vat/calculator';
 import { ValidationRules } from '@/lib/validation/rules';
+import { apiClient } from '@/lib/api/client';
 
 export interface QuoteQuery {
   search?: string;
@@ -45,6 +46,29 @@ export interface QuoteInput {
 }
 
 class QuoteService {
+  /**
+   * Synchronize all quotes from MongoDB Atlas Express API directly into local store.
+   */
+  async syncQuotes(query: QuoteQuery = {}): Promise<Quote[]> {
+    try {
+      const res = await apiClient.get<{ success: boolean; items: Quote[] }>('/quotes', {
+        pageSize: 1000,
+        status: query.status !== 'ALL' ? query.status : undefined,
+        customerId: query.customerId !== 'ALL' ? query.customerId : undefined,
+        search: query.search?.trim() || undefined,
+      });
+
+      if (res && res.success && Array.isArray(res.items)) {
+        res.items.forEach((q) => {
+          db.upsertQuote(q);
+        });
+        return res.items;
+      }
+    } catch (err) {
+      console.warn('[QuoteService] Atlas sync failed, using cached store:', err);
+    }
+    return db.getQuotes();
+  }
   /**
    * Calculates high-precision mathematical totals for a quote and its line items.
    */
@@ -250,6 +274,37 @@ class QuoteService {
         terms: data.terms?.trim() || undefined,
         items: processedItems,
       });
+
+      // Background cloud sync to MongoDB Atlas
+      apiClient
+        .post<{ success: boolean; data: Quote }>('/quotes', {
+          customerId: data.customer_id,
+          quoteDate: data.quote_date,
+          validUntil: data.expiry_date,
+          items: data.items.map((it) => ({
+            description: it.description,
+            quantity: Number(it.quantity),
+            unit: it.unit || 'Unit',
+            unitPrice: Number(it.unit_price),
+            vatRateId: it.vat_rate_id,
+            discountType: it.discount_type || 'PERCENTAGE',
+            discountValue: Number(it.discount_value) || 0,
+            productId: it.product_id,
+          })),
+          discountType: data.discount_type || 'PERCENTAGE',
+          discountValue: Number(data.discount_value) || 0,
+          notes: data.notes?.trim() || undefined,
+          terms: data.terms?.trim() || undefined,
+          status: 'DRAFT',
+        })
+        .then((cloudRes) => {
+          if (cloudRes && cloudRes.success && cloudRes.data) {
+            db.upsertQuote(cloudRes.data);
+          }
+        })
+        .catch((e) => {
+          console.warn('[QuoteService] Cloud quote background error:', e.message);
+        });
 
       return {
         success: true,

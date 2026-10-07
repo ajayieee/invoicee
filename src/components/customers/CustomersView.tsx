@@ -114,10 +114,16 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
     fetchCustomers();
   }, [search, selectedRelation, selectedEmirate, currentPage, pageSize]);
 
-  const handleOpenCreate = () => {
+  const handleOpenCreate = (relationType?: unknown) => {
+    const targetRelation: CustomerRelation =
+      relationType === 'PROSPECT' || relationType === 'CUSTOMER'
+        ? relationType
+        : selectedRelation === 'PROSPECT'
+        ? 'PROSPECT'
+        : 'CUSTOMER';
     setEditingId(null);
     setFormCustomerType('COMPANY');
-    setFormRelationType('CUSTOMER');
+    setFormRelationType(targetRelation);
     setCompanyName('');
     setContactPerson('');
     setEmail('');
@@ -256,7 +262,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
         </div>
 
         {permissions.canManageCustomers && (
-          <Button variant="emerald" onClick={handleOpenCreate} className="flex items-center gap-1.5 shadow-sm font-semibold">
+          <Button variant="emerald" onClick={() => handleOpenCreate()} className="flex items-center gap-1.5 shadow-sm font-semibold">
             <Plus className="h-4 w-4" />
             <span>New Customer / Prospect</span>
           </Button>
@@ -361,27 +367,38 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
             <div className="p-8">
               <EmptyState
                 icon={Users}
-                title="No Customers or Prospects Found"
+                title={
+                  search || selectedEmirate !== 'ALL'
+                    ? 'No Matching Accounts Found'
+                    : selectedRelation === 'PROSPECT'
+                    ? 'No Sales Prospects Found'
+                    : selectedRelation === 'CUSTOMER'
+                    ? 'No Active Customers Found'
+                    : 'No Customers or Prospects Found'
+                }
                 description={
-                  search || selectedRelation !== 'ALL' || selectedEmirate !== 'ALL'
+                  search || selectedEmirate !== 'ALL'
                     ? 'No accounts match your search filters. Try clearing filters or searching for another keyword.'
+                    : selectedRelation === 'PROSPECT'
+                    ? 'Register your first sales prospect or lead to start tracking pipeline opportunities.'
+                    : selectedRelation === 'CUSTOMER'
+                    ? 'Register your first commercial client with UAE TRN registration.'
                     : 'Register your first commercial client or sales lead with UAE TRN registration.'
                 }
                 action={
-                  search || selectedRelation !== 'ALL' || selectedEmirate !== 'ALL'
+                  search || selectedEmirate !== 'ALL'
                     ? {
                         label: 'Reset Filters',
                         onClick: () => {
                           setSearch('');
-                          setSelectedRelation('ALL');
                           setSelectedEmirate('ALL');
                         },
                         icon: RotateCcw,
                       }
                     : permissions.canManageCustomers
                     ? {
-                        label: 'Register First Client',
-                        onClick: handleOpenCreate,
+                        label: selectedRelation === 'PROSPECT' ? 'Register Sales Prospect' : 'Register First Client',
+                        onClick: () => handleOpenCreate(selectedRelation === 'PROSPECT' ? 'PROSPECT' : 'CUSTOMER'),
                         icon: Plus,
                       }
                     : undefined
