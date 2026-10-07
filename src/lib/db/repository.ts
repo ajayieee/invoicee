@@ -251,7 +251,12 @@ class Repository {
 
   public upsertProduct(product: Product): Product {
     const prodId = product.id || (product as any)._id;
-    const idx = this.store.products.findIndex((p) => p.id === prodId || (p as any)._id === prodId);
+    const idx = this.store.products.findIndex(
+      (p) =>
+        p.id === prodId ||
+        (p as any)._id === prodId ||
+        (product.sku && p.sku && p.sku.trim().toUpperCase() === product.sku.trim().toUpperCase())
+    );
     if (idx !== -1) {
       this.store.products[idx] = { ...this.store.products[idx], ...product, id: prodId };
     } else {

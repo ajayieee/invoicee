@@ -131,7 +131,7 @@ To confirm that you want to purge all existing records and re-seed with demo dat
     },
     {
       name: 'Sarah Al-Nuaimi [DEMO ACCOUNTANT]',
-      email: 'sarah.nuaimi@althuraya.ae',
+      email: 'sarah.nuaimi@pixelflames.com',
       passwordHash: staffHash,
       title: 'Senior Financial Controller',
       role: 'ACCOUNTANT',
@@ -140,7 +140,7 @@ To confirm that you want to purge all existing records and re-seed with demo dat
     },
     {
       name: 'Khalid Al-Hashimi [DEMO SALES]',
-      email: 'khalid.hashimi@althuraya.ae',
+      email: 'khalid.hashimi@pixelflames.com',
       passwordHash: staffHash,
       title: 'Corporate Sales Director',
       role: 'SALES',
@@ -153,15 +153,15 @@ To confirm that you want to purge all existing records and re-seed with demo dat
   // 3. Seed Company Settings
   await CompanySettings.create({
     organizationId: 'org_pixelflames_001',
-    companyNameEn: '[DEMO] Al Thuraya Financial & Management Consultancy LLC',
-    companyNameAr: 'شركة الثريا للاستشارات المالية والإدارية ذ.م.م [تجريبي]',
-    trn: '100234567800003',
+    companyNameEn: 'PixelFlames LLC',
+    companyNameAr: 'شركة بكسل فليمز ذ.م.م',
+    trn: '100000000000003',
     legalForm: 'Limited Liability Company (LLC)',
     tradeLicenseNumber: 'CN-1029384',
     taxRegistrationDate: '2018-01-01',
-    email: 'billing@althuraya.ae',
+    email: 'billing@pixelflames.com',
     phone: '+971 4 388 9000',
-    website: 'https://althuraya.ae',
+    website: 'https://pixelflames.com',
     addressEn: {
       building: 'Level 14, Al Saada Tower',
       street: 'Sheikh Zayed Road, Trade Centre 1',
@@ -174,7 +174,7 @@ To confirm that you want to purge all existing records and re-seed with demo dat
     bankAccounts: [
       {
         bankName: 'Emirates NBD',
-        accountName: 'Al Thuraya Financial Consultancy LLC',
+        accountName: 'PixelFlames LLC',
         accountNumber: '1029384756',
         iban: 'AE290260001029384756001',
         swiftBic: 'EBILAEADXXX',
@@ -183,7 +183,7 @@ To confirm that you want to purge all existing records and re-seed with demo dat
       },
       {
         bankName: 'Abu Dhabi Commercial Bank (ADCB)',
-        accountName: 'Al Thuraya Financial Consultancy LLC',
+        accountName: 'PixelFlames LLC',
         accountNumber: '9948201948',
         iban: 'AE550230009948201948001',
         swiftBic: 'ADCBAEAAXXX',
@@ -196,7 +196,7 @@ To confirm that you want to purge all existing records and re-seed with demo dat
     creditNotePrefix: 'CN',
     paymentPrefix: 'PAY',
     defaultPaymentTermsDays: 30,
-    defaultNotes: '[DEMO DATA] Thank you for choosing Al Thuraya. All fees in AED subject to 5% VAT in accordance with UAE Federal Decree-Law No. (8) of 2017.',
+    defaultNotes: 'Thank you for choosing PixelFlames. All fees in AED subject to 5% VAT in accordance with UAE Federal Decree-Law No. (8) of 2017.',
     defaultTerms: 'Payment due within 30 days of invoice date. Remittances must reference the invoice number.',
   });
   console.log('🏢 Seeded Company Settings.');
@@ -560,7 +560,7 @@ To confirm that you want to purge all existing records and re-seed with demo dat
   console.log(`
 🎉 ==============================================================
 🌱 Database seed completed successfully!
-🏢 Organization: [DEMO] Al Thuraya Financial Consultancy LLC
+🏢 Organization: PixelFlames LLC
 📊 Invoices: INV-2026-00001 (PAID), INV-2026-00002 (PARTIALLY_PAID), INV-2026-00003 (OVERDUE)
 
 🔑 Administrator Account:

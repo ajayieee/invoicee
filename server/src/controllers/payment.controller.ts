@@ -6,6 +6,15 @@ import { PaymentMethod } from '../models/PaymentMethod.js';
 import { CompanySettings } from '../models/CompanySettings.js';
 import { AuditLog } from '../models/AuditLog.js';
 
+export const PM_PRESETS: Record<string, { code: string; name: string }> = {
+  'pm-001': { code: 'BANK_TRANSFER', name: 'Bank Transfer (EFT)' },
+  'pm-002': { code: 'CHEQUE', name: 'Cheque' },
+  'pm-003': { code: 'CREDIT_CARD', name: 'Credit Card' },
+  'pm-004': { code: 'DEBIT_CARD', name: 'Debit Card' },
+  'pm-005': { code: 'CASH', name: 'Cash' },
+  'pm-006': { code: 'OTHER', name: 'Other' },
+};
+
 export function serializePayment(doc: any) {
   if (!doc) return null;
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -61,7 +70,21 @@ export async function getPayments(req: Request, res: Response): Promise<void> {
     const query: any = {};
 
     if (status && status !== 'ALL') query.status = status;
-    if (paymentMethodId && paymentMethodId !== 'ALL') query.paymentMethodId = paymentMethodId;
+    if (paymentMethodId && paymentMethodId !== 'ALL') {
+      const pmStr = String(paymentMethodId);
+      const preset = PM_PRESETS[pmStr];
+      const orClauses: any[] = [];
+      if (mongoose.Types.ObjectId.isValid(pmStr)) {
+        orClauses.push({ paymentMethodId: new mongoose.Types.ObjectId(pmStr) });
+      }
+      if (preset) {
+        orClauses.push({ paymentMethodName: preset.name });
+      } else {
+        orClauses.push({ paymentMethodName: pmStr });
+      }
+      query.$and = query.$and || [];
+      query.$and.push({ $or: orClauses });
+    }
     if (customerId && customerId !== 'ALL') query.customerId = customerId;
     if (invoiceId) query.invoiceId = invoiceId;
 
@@ -156,15 +179,6 @@ export async function recordPayment(req: Request, res: Response): Promise<void> 
       });
       return;
     }
-
-    const PM_PRESETS: Record<string, { code: string; name: string }> = {
-      'pm-001': { code: 'BANK_TRANSFER', name: 'Bank Transfer (EFT)' },
-      'pm-002': { code: 'CHEQUE', name: 'Cheque' },
-      'pm-003': { code: 'CREDIT_CARD', name: 'Credit Card' },
-      'pm-004': { code: 'DEBIT_CARD', name: 'Debit Card' },
-      'pm-005': { code: 'CASH', name: 'Cash' },
-      'pm-006': { code: 'OTHER', name: 'Other' },
-    };
 
     let paymentMethod = null;
     if (mongoose.Types.ObjectId.isValid(paymentMethodId)) {

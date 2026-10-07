@@ -91,13 +91,13 @@ async function runTestSuite() {
 
   // Successful update
   const updateRes = companyService.updateSettings({
-    trading_name: 'Al Thuraya Cloud ERP Solutions',
+    trading_name: 'PixelFlames Cloud ERP',
     phone: '+971 4 888 9999',
     invoice_footer_notes: 'Standard 5% UAE VAT applies under FTA regulation.',
   });
   assert(updateRes.success, 'Updates company settings successfully');
   assert(
-    companyService.getSettings().trading_name === 'Al Thuraya Cloud ERP Solutions',
+    companyService.getSettings().trading_name === 'PixelFlames Cloud ERP',
     'Updated company trading name persists in repository'
   );
 
@@ -272,7 +272,7 @@ async function runTestSuite() {
   assert(!!prodDupSku.sku, 'Validation prevents duplicate SKU within catalog');
 
   // CREATE: New billable service with margin
-  const createProdRes = productService.createProduct({
+  const createProdRes = await productService.createProduct({
     name: 'AI Document Extraction Engine',
     sku: 'SRV-AI-DOC-01',
     description: 'Custom OCR and NLP invoice pipeline for UAE FTA audit logs',
@@ -309,7 +309,7 @@ async function runTestSuite() {
   assert(prodPage1.totalPages > 1, 'READ: Pagination calculates total pages correctly');
 
   // UPDATE:
-  const updateProdRes = productService.updateProduct(newProdId, {
+  const updateProdRes = await productService.updateProduct(newProdId, {
     name: 'AI Document Extraction Engine Enterprise',
     sku: 'SRV-AI-DOC-ENT',
     unit: 'Contract',
@@ -325,14 +325,14 @@ async function runTestSuite() {
   );
 
   // DELETE GUARD: Product referenced in invoices cannot be casually deleted
-  const delProdBlocked = productService.deleteProduct('prod-001');
+  const delProdBlocked = await productService.deleteProduct('prod-001');
   assert(
     Boolean(!delProdBlocked.success && delProdBlocked.error?.includes('referenced in issued tax invoices')),
     'DELETE GUARD: Prevents deleting product used in issued tax invoices'
   );
 
   // DELETE: Unreferenced product can be deleted
-  const delProdAllowed = productService.deleteProduct(newProdId);
+  const delProdAllowed = await productService.deleteProduct(newProdId);
   assert(delProdAllowed.success, 'DELETE: Unreferenced product deleted cleanly');
   assert(
     productService.getProductById(newProdId) === null,

@@ -23,9 +23,81 @@ import { Invoice } from '@/types/database';
 import { db } from '@/lib/db/repository';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 
+const VALID_TABS: NavTab[] = [
+  'dashboard',
+  'customers',
+  'products',
+  'quotes',
+  'invoices',
+  'payments',
+  'credit-notes',
+  'reports',
+  'settings',
+];
+
+const ACTIVE_TAB_STORAGE_KEY = 'uae_invoice_active_nav_tab';
+
 function AppHomeContent() {
   const { organization, refreshOrgContext } = useAuth();
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as NavTab;
+      if (tabParam && VALID_TABS.includes(tabParam)) {
+        return tabParam;
+      }
+      const savedTab = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) as NavTab;
+      if (savedTab && VALID_TABS.includes(savedTab)) {
+        return savedTab;
+      }
+    } catch {
+      // ignore
+    }
+    return 'dashboard';
+  });
+
+  const switchTab = (tab: NavTab) => {
+    if (!VALID_TABS.includes(tab)) return;
+    setCurrentTab(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tab);
+        const url = new URL(window.location.href);
+        if (tab === 'dashboard') {
+          url.searchParams.delete('tab');
+        } else {
+          url.searchParams.set('tab', tab);
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Could not update URL or localStorage:', e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (currentTab !== 'dashboard') {
+        url.searchParams.set('tab', currentTab);
+        window.history.replaceState({}, '', url.toString());
+      }
+      localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, currentTab);
+    }
+
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = (params.get('tab') as NavTab) || 'dashboard';
+      if (VALID_TABS.includes(tabParam)) {
+        setCurrentTab(tabParam);
+        localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabParam);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentTab]);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<{
@@ -76,7 +148,7 @@ function AppHomeContent() {
         setRecordPaymentOpen(true);
         break;
       case 'NEW_CUSTOMER':
-        setCurrentTab('customers');
+        switchTab('customers');
         break;
     }
   };
@@ -97,7 +169,7 @@ function AppHomeContent() {
               currentTab={currentTab}
               onSelectTab={(tab) => {
                 setPrintDoc(null);
-                setCurrentTab(tab);
+                switchTab(tab);
                 setMobileMenuOpen(false);
               }}
               orgName={organization.name}
@@ -157,7 +229,7 @@ function AppHomeContent() {
                 {currentTab === 'quotes' && (
                   <QuotesView
                     onViewInvoice={(invoiceId) => {
-                      setCurrentTab('invoices');
+                      switchTab('invoices');
                     }}
                     onPrintDocument={(docType, docId) => {
                       setPrintDoc({ docType, docId });
@@ -184,7 +256,7 @@ function AppHomeContent() {
                 {currentTab === 'payments' && (
                   <PaymentsView
                     onViewInvoice={(invoiceId) => {
-                      setCurrentTab('invoices');
+                      switchTab('invoices');
                     }}
                   />
                 )}
@@ -192,7 +264,7 @@ function AppHomeContent() {
                 {currentTab === 'credit-notes' && (
                   <CreditNotesView
                     onViewInvoice={(invoiceId) => {
-                      setCurrentTab('invoices');
+                      switchTab('invoices');
                     }}
                     onPrintDocument={(docType, docId) => {
                       setPrintDoc({ docType, docId });
@@ -215,7 +287,7 @@ function AppHomeContent() {
         onOpenChange={setNewQuoteOpen}
         onSuccess={() => {
           triggerRefresh();
-          setCurrentTab('quotes');
+          switchTab('quotes');
         }}
       />
 
@@ -224,7 +296,7 @@ function AppHomeContent() {
         onOpenChange={setNewInvoiceOpen}
         onSuccess={() => {
           triggerRefresh();
-          setCurrentTab('invoices');
+          switchTab('invoices');
         }}
       />
 
@@ -235,7 +307,7 @@ function AppHomeContent() {
         onSuccess={() => {
           triggerRefresh();
           if (!paymentTargetInvoice) {
-            setCurrentTab('payments');
+            switchTab('payments');
           }
         }}
       />
@@ -246,7 +318,7 @@ function AppHomeContent() {
         targetInvoice={creditNoteTargetInvoice}
         onSuccess={() => {
           triggerRefresh();
-          setCurrentTab('credit-notes');
+          switchTab('credit-notes');
         }}
       />
 

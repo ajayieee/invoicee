@@ -61,7 +61,48 @@ class PaymentService {
 
     // 2. Payment Method Filter
     if (paymentMethodId && paymentMethodId !== 'ALL') {
-      items = items.filter((p) => p.payment_method_id === paymentMethodId);
+      const allMethods = db.getPaymentMethods();
+      const targetMethod = allMethods.find(
+        (m) =>
+          m.id === paymentMethodId ||
+          m.code === paymentMethodId ||
+          m.name.toLowerCase() === paymentMethodId.toLowerCase()
+      );
+
+      items = items.filter((p) => {
+        // Direct ID match
+        if (p.payment_method_id === paymentMethodId) return true;
+        if ((p as any).paymentMethodId === paymentMethodId) return true;
+
+        // If target method resolved, match by method name or code
+        if (targetMethod) {
+          if (
+            p.payment_method_name &&
+            p.payment_method_name.trim().toLowerCase() === targetMethod.name.trim().toLowerCase()
+          ) {
+            return true;
+          }
+          if (
+            (p as any).paymentMethodName &&
+            (p as any).paymentMethodName.trim().toLowerCase() === targetMethod.name.trim().toLowerCase()
+          ) {
+            return true;
+          }
+          if ((p as any).code === targetMethod.code) {
+            return true;
+          }
+        }
+
+        // Direct name match fallback
+        if (
+          p.payment_method_name &&
+          p.payment_method_name.trim().toLowerCase() === paymentMethodId.trim().toLowerCase()
+        ) {
+          return true;
+        }
+
+        return false;
+      });
     }
 
     // 3. Customer Filter

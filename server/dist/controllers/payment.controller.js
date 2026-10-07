@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PM_PRESETS = void 0;
 exports.serializePayment = serializePayment;
 exports.getPayments = getPayments;
 exports.recordPayment = recordPayment;
@@ -13,6 +14,14 @@ const Invoice_js_1 = require("../models/Invoice.js");
 const PaymentMethod_js_1 = require("../models/PaymentMethod.js");
 const CompanySettings_js_1 = require("../models/CompanySettings.js");
 const AuditLog_js_1 = require("../models/AuditLog.js");
+exports.PM_PRESETS = {
+    'pm-001': { code: 'BANK_TRANSFER', name: 'Bank Transfer (EFT)' },
+    'pm-002': { code: 'CHEQUE', name: 'Cheque' },
+    'pm-003': { code: 'CREDIT_CARD', name: 'Credit Card' },
+    'pm-004': { code: 'DEBIT_CARD', name: 'Debit Card' },
+    'pm-005': { code: 'CASH', name: 'Cash' },
+    'pm-006': { code: 'OTHER', name: 'Other' },
+};
 function serializePayment(doc) {
     if (!doc)
         return null;
@@ -56,8 +65,22 @@ async function getPayments(req, res) {
         const query = {};
         if (status && status !== 'ALL')
             query.status = status;
-        if (paymentMethodId && paymentMethodId !== 'ALL')
-            query.paymentMethodId = paymentMethodId;
+        if (paymentMethodId && paymentMethodId !== 'ALL') {
+            const pmStr = String(paymentMethodId);
+            const preset = exports.PM_PRESETS[pmStr];
+            const orClauses = [];
+            if (mongoose_1.default.Types.ObjectId.isValid(pmStr)) {
+                orClauses.push({ paymentMethodId: new mongoose_1.default.Types.ObjectId(pmStr) });
+            }
+            if (preset) {
+                orClauses.push({ paymentMethodName: preset.name });
+            }
+            else {
+                orClauses.push({ paymentMethodName: pmStr });
+            }
+            query.$and = query.$and || [];
+            query.$and.push({ $or: orClauses });
+        }
         if (customerId && customerId !== 'ALL')
             query.customerId = customerId;
         if (invoiceId)
@@ -145,19 +168,11 @@ async function recordPayment(req, res) {
             });
             return;
         }
-        const PM_PRESETS = {
-            'pm-001': { code: 'BANK_TRANSFER', name: 'Bank Transfer (EFT)' },
-            'pm-002': { code: 'CHEQUE', name: 'Cheque' },
-            'pm-003': { code: 'CREDIT_CARD', name: 'Credit Card' },
-            'pm-004': { code: 'DEBIT_CARD', name: 'Debit Card' },
-            'pm-005': { code: 'CASH', name: 'Cash' },
-            'pm-006': { code: 'OTHER', name: 'Other' },
-        };
         let paymentMethod = null;
         if (mongoose_1.default.Types.ObjectId.isValid(paymentMethodId)) {
             paymentMethod = await PaymentMethod_js_1.PaymentMethod.findById(paymentMethodId);
         }
-        const preset = PM_PRESETS[paymentMethodId];
+        const preset = exports.PM_PRESETS[paymentMethodId];
         if (!paymentMethod && preset) {
             paymentMethod = await PaymentMethod_js_1.PaymentMethod.findOne({
                 $or: [{ code: preset.code }, { name: preset.name }],

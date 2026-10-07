@@ -192,7 +192,7 @@ class ProductService {
     return this.enrichProductWithMargin(product);
   }
 
-  createProduct(data: ProductInput, performedBy = 'Current User'): ServiceResponse<Product> {
+  async createProduct(data: ProductInput, performedBy = 'Current User'): Promise<ServiceResponse<Product>> {
     const errors = this.validateProduct(data);
     if (Object.keys(errors).length > 0) {
       return {
@@ -202,69 +202,81 @@ class ProductService {
       };
     }
 
+    const vatRates = db.getVatRates();
+    const selectedVat = vatRates.find((v) => v.id === data.vat_rate_id);
+    const categories = db.getProductCategories();
+    const selectedCat = categories.find((c) => c.id === data.category_id);
+
+    const payload = {
+      name: data.name.trim(),
+      sku: data.sku?.trim() ? data.sku.trim().toUpperCase() : undefined,
+      description: data.description?.trim() || undefined,
+      categoryId: data.category_id || undefined,
+      category_id: data.category_id || undefined,
+      categoryName: selectedCat?.name,
+      category_name: selectedCat?.name,
+      unit: data.unit.trim(),
+      costPrice: Number(data.cost_price) || 0,
+      cost_price: Number(data.cost_price) || 0,
+      sellingPrice: Number(data.selling_price) || 0,
+      selling_price: Number(data.selling_price) || 0,
+      vatRateId: data.vat_rate_id,
+      vat_rate_id: data.vat_rate_id,
+      vatRatePercentage: selectedVat?.rate_percentage ?? 5.0,
+      vat_rate_percentage: selectedVat?.rate_percentage ?? 5.0,
+      vatTreatment: selectedVat?.treatment ?? 'STANDARD_RATED',
+      vat_treatment: selectedVat?.treatment ?? 'STANDARD_RATED',
+      isActive: data.is_active ?? true,
+      is_active: data.is_active ?? true,
+    };
+
     try {
-      const vatRates = db.getVatRates();
-      const selectedVat = vatRates.find((v) => v.id === data.vat_rate_id);
-      const categories = db.getProductCategories();
-      const selectedCat = categories.find((c) => c.id === data.category_id);
-
-      const saved = db.saveProduct({
-        name: data.name.trim(),
-        sku: data.sku?.trim() ? data.sku.trim().toUpperCase() : undefined,
-        description: data.description?.trim() || undefined,
-        category_id: data.category_id || undefined,
-        category_name: selectedCat?.name,
-        unit: data.unit.trim(),
-        cost_price: Number(data.cost_price) || 0,
-        selling_price: Number(data.selling_price) || 0,
-        vat_rate_id: data.vat_rate_id,
-        vat_rate_percentage: selectedVat?.rate_percentage ?? 5.0,
-        vat_treatment: selectedVat?.treatment ?? 'STANDARD_RATED',
-        is_active: data.is_active ?? true,
-      });
-
-      // Background cloud sync to MongoDB Atlas
-      apiClient
-        .post<{ success: boolean; data: Product }>('/products', {
-          name: saved.name,
-          sku: saved.sku,
-          description: saved.description,
-          categoryId: saved.category_id,
-          categoryName: saved.category_name,
-          unit: saved.unit,
-          costPrice: saved.cost_price,
-          sellingPrice: saved.selling_price,
-          vatRateId: saved.vat_rate_id,
-          vatRatePercentage: saved.vat_rate_percentage,
-          vatTreatment: saved.vat_treatment,
-          isActive: saved.is_active,
-        })
-        .then((cloudRes) => {
-          if (cloudRes && cloudRes.success && cloudRes.data) {
-            db.upsertProduct(cloudRes.data);
-          }
-        })
-        .catch((e) => {
-          console.warn('[ProductService] Cloud create background error:', e.message);
-        });
-
-      return {
-        success: true,
-        data: saved,
-      };
+      // 1. Save directly to MongoDB Atlas first
+      const cloudRes = await apiClient.post<{ success: boolean; data: Product }>('/products', payload);
+      if (cloudRes && cloudRes.success && cloudRes.data) {
+        // 2. Synchronize to local DB with confirmed MongoDB ID
+        const saved = db.upsertProduct(cloudRes.data);
+        return {
+          success: true,
+          data: saved,
+        };
+      }
+      throw new Error('Unexpected response from product API');
     } catch (e: any) {
-      return {
-        success: false,
-        error: e.message || 'Failed to create product or service.',
-      };
+      console.warn('[ProductService] Cloud create failed, saving to local store:', e.message);
+      try {
+        const localSaved = db.saveProduct({
+          name: payload.name,
+          sku: payload.sku,
+          description: payload.description,
+          category_id: payload.category_id,
+          category_name: payload.category_name,
+          unit: payload.unit,
+          cost_price: payload.cost_price,
+          selling_price: payload.selling_price,
+          vat_rate_id: payload.vat_rate_id,
+          vat_rate_percentage: payload.vat_rate_percentage,
+          vat_treatment: payload.vat_treatment,
+          is_active: payload.is_active,
+        });
+        return {
+          success: true,
+          data: localSaved,
+        };
+      } catch (localErr: any) {
+        return {
+          success: false,
+          error: e.message || localErr.message || 'Failed to create product or service.',
+        };
+      }
     }
   }
 
-  updateProduct(
+  async updateProduct(
     id: string,
     data: ProductInput,
     performedBy = 'Current User'
-  ): ServiceResponse<Product> {
+  ): Promise<ServiceResponse<Product>> {
     const errors = this.validateProduct(data, id);
     if (Object.keys(errors).length > 0) {
       return {
@@ -285,41 +297,43 @@ class ProductService {
       const categories = db.getProductCategories();
       const selectedCat = categories.find((c) => c.id === data.category_id);
 
+      const payload = {
+        name: data.name ? data.name.trim() : existing.name,
+        sku: data.sku?.trim() ? data.sku.trim().toUpperCase() : existing.sku,
+        description: data.description?.trim() ?? existing.description,
+        categoryId: data.category_id ?? existing.category_id,
+        category_id: data.category_id ?? existing.category_id,
+        categoryName: selectedCat?.name ?? existing.category_name,
+        category_name: selectedCat?.name ?? existing.category_name,
+        unit: data.unit ? data.unit.trim() : existing.unit,
+        costPrice: data.cost_price !== undefined ? Number(data.cost_price) : existing.cost_price,
+        cost_price: data.cost_price !== undefined ? Number(data.cost_price) : existing.cost_price,
+        sellingPrice: data.selling_price !== undefined ? Number(data.selling_price) : existing.selling_price,
+        selling_price: data.selling_price !== undefined ? Number(data.selling_price) : existing.selling_price,
+        vatRateId: data.vat_rate_id ?? existing.vat_rate_id,
+        vat_rate_id: data.vat_rate_id ?? existing.vat_rate_id,
+        vatRatePercentage: selectedVat?.rate_percentage ?? existing.vat_rate_percentage ?? 5.0,
+        vat_rate_percentage: selectedVat?.rate_percentage ?? existing.vat_rate_percentage ?? 5.0,
+        vatTreatment: selectedVat?.treatment ?? existing.vat_treatment ?? 'STANDARD_RATED',
+        vat_treatment: selectedVat?.treatment ?? existing.vat_treatment ?? 'STANDARD_RATED',
+        isActive: data.is_active ?? existing.is_active,
+        is_active: data.is_active ?? existing.is_active,
+      };
+
+      try {
+        const cloudRes = await apiClient.put<{ success: boolean; data: Product }>(`/products/${id}`, payload);
+        if (cloudRes && cloudRes.success && cloudRes.data) {
+          const saved = db.upsertProduct(cloudRes.data);
+          return { success: true, data: saved };
+        }
+      } catch (cloudErr: any) {
+        console.warn('[ProductService] Cloud update failed, updating locally:', cloudErr.message);
+      }
+
       const saved = db.saveProduct({
         id,
-        name: data.name.trim(),
-        sku: data.sku?.trim() ? data.sku.trim().toUpperCase() : undefined,
-        description: data.description?.trim() || undefined,
-        category_id: data.category_id || undefined,
-        category_name: selectedCat?.name,
-        unit: data.unit.trim(),
-        cost_price: Number(data.cost_price) || 0,
-        selling_price: Number(data.selling_price) || 0,
-        vat_rate_id: data.vat_rate_id,
-        vat_rate_percentage: selectedVat?.rate_percentage ?? existing.vat_rate_percentage ?? 5.0,
-        vat_treatment: selectedVat?.treatment ?? existing.vat_treatment ?? 'STANDARD_RATED',
-        is_active: data.is_active ?? existing.is_active,
+        ...payload,
       });
-
-      // Background cloud sync to MongoDB Atlas
-      apiClient
-        .put<{ success: boolean; data: Product }>(`/products/${id}`, {
-          name: saved.name,
-          sku: saved.sku,
-          description: saved.description,
-          categoryId: saved.category_id,
-          categoryName: saved.category_name,
-          unit: saved.unit,
-          costPrice: saved.cost_price,
-          sellingPrice: saved.selling_price,
-          vatRateId: saved.vat_rate_id,
-          vatRatePercentage: saved.vat_rate_percentage,
-          vatTreatment: saved.vat_treatment,
-          isActive: saved.is_active,
-        })
-        .catch((e) => {
-          console.warn('[ProductService] Cloud update background error:', e.message);
-        });
 
       return {
         success: true,
@@ -333,7 +347,7 @@ class ProductService {
     }
   }
 
-  deleteProduct(id: string, performedBy = 'Current User'): ServiceResponse<boolean> {
+  async deleteProduct(id: string, performedBy = 'Current User'): Promise<ServiceResponse<boolean>> {
     // Audit check if referenced in invoices
     const invoices = db.getInvoices();
     const isUsedInInvoices = invoices.some((inv) =>
@@ -358,12 +372,15 @@ class ProductService {
     }
 
     try {
-      db.deleteProduct(id);
+      // 1. Delete from MongoDB Atlas cloud first (awaiting completion)
+      try {
+        await apiClient.delete(`/products/${id}`);
+      } catch (cloudErr: any) {
+        console.warn('[ProductService] Cloud delete error (or offline):', cloudErr.message);
+      }
 
-      // Background cloud delete in MongoDB Atlas
-      apiClient.delete(`/products/${id}`).catch((e) => {
-        console.warn('[ProductService] Cloud delete background error:', e.message);
-      });
+      // 2. Delete locally from repository store
+      db.deleteProduct(id);
 
       return {
         success: true,

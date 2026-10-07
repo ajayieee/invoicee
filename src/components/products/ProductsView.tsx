@@ -54,6 +54,7 @@ export function ProductsView() {
   );
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -129,7 +130,8 @@ export function ProductsView() {
     setModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
     setFieldErrors({});
 
     const payload = {
@@ -144,28 +146,33 @@ export function ProductsView() {
       is_active: isActive,
     };
 
-    const res = editingId
-      ? productService.updateProduct(editingId, payload, user.name)
-      : productService.createProduct(payload, user.name);
+    setIsSaving(true);
+    try {
+      const res = editingId
+        ? await productService.updateProduct(editingId, payload, user.name)
+        : await productService.createProduct(payload, user.name);
 
-    if (!res.success) {
-      if (res.errors) {
-        setFieldErrors(res.errors);
+      if (!res.success) {
+        if (res.errors) {
+          setFieldErrors(res.errors);
+        }
+        setAlertFeedback({
+          type: 'error',
+          message: res.error || 'Please correct the highlighted form errors.',
+        });
+        return;
       }
-      setAlertFeedback({
-        type: 'error',
-        message: res.error || 'Please correct the highlighted form errors.',
-      });
-      return;
-    }
 
-    setModalOpen(false);
-    setAlertFeedback({
-      type: 'success',
-      message: `Product / Service "${payload.name}" successfully ${editingId ? 'updated' : 'cataloged'}.`,
-    });
-    setTimeout(() => setAlertFeedback(null), 4000);
-    fetchProducts();
+      setModalOpen(false);
+      setAlertFeedback({
+        type: 'success',
+        message: `Product / Service "${payload.name}" successfully ${editingId ? 'updated' : 'cataloged'}.`,
+      });
+      setTimeout(() => setAlertFeedback(null), 4000);
+      await fetchProducts();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleToggleActive = (p: Product) => {
@@ -177,12 +184,12 @@ export function ProductsView() {
     setProductToDelete(p);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!productToDelete) return;
 
     setIsDeleting(true);
     try {
-      const res = productService.deleteProduct(productToDelete.id, user.name);
+      const res = await productService.deleteProduct(productToDelete.id, user.name);
       if (!res.success) {
         setAlertFeedback({
           type: 'error',
@@ -196,8 +203,8 @@ export function ProductsView() {
         message: `Product "${productToDelete.name}" deleted successfully.`,
       });
       setTimeout(() => setAlertFeedback(null), 4000);
-      fetchProducts();
       setProductToDelete(null);
+      await fetchProducts();
     } finally {
       setIsDeleting(false);
     }
@@ -475,11 +482,11 @@ export function ProductsView() {
         maxWidth="lg"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={isSaving}>
               Cancel
             </Button>
-            <Button variant="emerald" onClick={handleSave}>
-              {editingId ? 'Save Changes' : 'Add Item'}
+            <Button variant="emerald" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Item'}
             </Button>
           </>
         }
