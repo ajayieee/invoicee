@@ -94,6 +94,11 @@ class Repository {
             this.persist();
           } else {
             this.store = parsed;
+            // Ensure default categories are populated if empty
+            if (!this.store.categories || this.store.categories.length === 0) {
+              this.store.categories = [...INITIAL_CATEGORIES];
+              this.persist();
+            }
           }
         } else {
           this.persist();
@@ -390,7 +395,26 @@ class Repository {
 
   // --- Categories & Products ---
   public getProductCategories(): ProductCategory[] {
+    if (!this.store.categories || this.store.categories.length === 0) {
+      this.store.categories = [...INITIAL_CATEGORIES];
+      this.persist();
+    }
     return [...this.store.categories];
+  }
+
+  public addProductCategory(category: Omit<ProductCategory, 'id' | 'organization_id'> & { id?: string }): ProductCategory {
+    const newCat: ProductCategory = {
+      id: category.id || `cat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      organization_id: this.store.companySettings?.organization_id || 'org_pixelflames_001',
+      name: category.name.trim(),
+      description: category.description?.trim(),
+    };
+    if (!this.store.categories) {
+      this.store.categories = [];
+    }
+    this.store.categories.push(newCat);
+    this.persist();
+    return newCat;
   }
 
   public getProducts(): Product[] {

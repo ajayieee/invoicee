@@ -90,7 +90,56 @@ export const INITIAL_PAYMENT_METHODS: PaymentMethod[] = [
   { id: 'pm-006', organization_id: 'org_pixelflames_001', name: 'Other', code: 'OTHER', is_active: true },
 ];
 
-export const INITIAL_CATEGORIES: ProductCategory[] = [];
+export const INITIAL_CATEGORIES: ProductCategory[] = [
+  {
+    id: 'cat-001',
+    organization_id: 'org_pixelflames_001',
+    name: 'Software & Web Development',
+    description: 'Custom software, web applications, and mobile solutions',
+  },
+  {
+    id: 'cat-002',
+    organization_id: 'org_pixelflames_001',
+    name: 'Cloud & Infrastructure Services',
+    description: 'Cloud hosting, DevOps automation, cloud migration, and architecture',
+  },
+  {
+    id: 'cat-003',
+    organization_id: 'org_pixelflames_001',
+    name: 'IT Consulting & Architecture',
+    description: 'Enterprise advisory, systems architecture, and technical consulting',
+  },
+  {
+    id: 'cat-004',
+    organization_id: 'org_pixelflames_001',
+    name: 'Managed IT Support & AMC',
+    description: 'Annual maintenance contracts (AMC), SLAs, and technical support retainers',
+  },
+  {
+    id: 'cat-005',
+    organization_id: 'org_pixelflames_001',
+    name: 'Digital Marketing & Creative',
+    description: 'UI/UX design, corporate branding, SEO, and digital media production',
+  },
+  {
+    id: 'cat-006',
+    organization_id: 'org_pixelflames_001',
+    name: 'Hardware & Networking Equipment',
+    description: 'Enterprise servers, networking hardware, and workstation supply',
+  },
+  {
+    id: 'cat-007',
+    organization_id: 'org_pixelflames_001',
+    name: 'Professional & Business Advisory',
+    description: 'Project management, compliance advisory, and business consultancy',
+  },
+  {
+    id: 'cat-008',
+    organization_id: 'org_pixelflames_001',
+    name: 'General Goods & Merchandise',
+    description: 'Physical trade goods, office supplies, and equipment sales',
+  },
+];
 export const INITIAL_PRODUCTS: Product[] = [];
 export const INITIAL_CUSTOMERS: Customer[] = [];
 export const INITIAL_QUOTES: Quote[] = [];

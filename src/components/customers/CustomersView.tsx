@@ -119,8 +119,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
       relationType === 'PROSPECT' || relationType === 'CUSTOMER'
         ? relationType
         : selectedRelation === 'PROSPECT'
-        ? 'PROSPECT'
-        : 'CUSTOMER';
+          ? 'PROSPECT'
+          : 'CUSTOMER';
     setEditingId(null);
     setFormCustomerType('COMPANY');
     setFormRelationType(targetRelation);
@@ -198,9 +198,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
     setModalOpen(false);
     setAlertFeedback({
       type: 'success',
-      message: `Account "${payload.company_name || payload.contact_person}" successfully ${
-        editingId ? 'updated' : 'registered'
-      }.`,
+      message: `Account "${payload.company_name || payload.contact_person}" successfully ${editingId ? 'updated' : 'registered'
+        }.`,
     });
     setTimeout(() => setAlertFeedback(null), 4000);
     await fetchCustomers();
@@ -286,11 +285,10 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
               setSelectedRelation('ALL');
               setCurrentPage(1);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              selectedRelation === 'ALL'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedRelation === 'ALL'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             All Accounts
           </button>
@@ -299,11 +297,10 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
               setSelectedRelation('CUSTOMER');
               setCurrentPage(1);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              selectedRelation === 'CUSTOMER'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedRelation === 'CUSTOMER'
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             Active Customers
           </button>
@@ -312,11 +309,10 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
               setSelectedRelation('PROSPECT');
               setCurrentPage(1);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              selectedRelation === 'PROSPECT'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedRelation === 'PROSPECT'
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             Sales Prospects
           </button>
@@ -371,37 +367,37 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                   search || selectedEmirate !== 'ALL'
                     ? 'No Matching Accounts Found'
                     : selectedRelation === 'PROSPECT'
-                    ? 'No Sales Prospects Found'
-                    : selectedRelation === 'CUSTOMER'
-                    ? 'No Active Customers Found'
-                    : 'No Customers or Prospects Found'
+                      ? 'No Sales Prospects Found'
+                      : selectedRelation === 'CUSTOMER'
+                        ? 'No Active Customers Found'
+                        : 'No Customers or Prospects Found'
                 }
                 description={
                   search || selectedEmirate !== 'ALL'
                     ? 'No accounts match your search filters. Try clearing filters or searching for another keyword.'
                     : selectedRelation === 'PROSPECT'
-                    ? 'Register your first sales prospect or lead to start tracking pipeline opportunities.'
-                    : selectedRelation === 'CUSTOMER'
-                    ? 'Register your first commercial client with UAE TRN registration.'
-                    : 'Register your first commercial client or sales lead with UAE TRN registration.'
+                      ? 'Register your first sales prospect or lead to start tracking pipeline opportunities.'
+                      : selectedRelation === 'CUSTOMER'
+                        ? 'Register your first commercial client with UAE TRN registration.'
+                        : 'Register your first commercial client or sales lead with UAE TRN registration.'
                 }
                 action={
                   search || selectedEmirate !== 'ALL'
                     ? {
-                        label: 'Reset Filters',
-                        onClick: () => {
-                          setSearch('');
-                          setSelectedEmirate('ALL');
-                        },
-                        icon: RotateCcw,
-                      }
+                      label: 'Reset Filters',
+                      onClick: () => {
+                        setSearch('');
+                        setSelectedEmirate('ALL');
+                      },
+                      icon: RotateCcw,
+                    }
                     : permissions.canManageCustomers
-                    ? {
+                      ? {
                         label: selectedRelation === 'PROSPECT' ? 'Register Sales Prospect' : 'Register First Client',
                         onClick: () => handleOpenCreate(selectedRelation === 'PROSPECT' ? 'PROSPECT' : 'CUSTOMER'),
                         icon: Plus,
                       }
-                    : undefined
+                      : undefined
                 }
               />
             </div>
@@ -423,9 +419,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                   {pagedData.items.map((c) => (
                     <tr
                       key={c.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        !c.is_active ? 'opacity-50 bg-slate-50/40' : ''
-                      }`}
+                      className={`hover:bg-slate-50/80 transition-colors ${!c.is_active ? 'opacity-50 bg-slate-50/40' : ''
+                        }`}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -512,9 +507,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                               <button
                                 onClick={() => handleToggleActive(c)}
                                 title={c.is_active ? 'Deactivate account' : 'Activate account'}
-                                className={`p-1.5 rounded hover:bg-slate-100 cursor-pointer ${
-                                  c.is_active ? 'text-slate-500 hover:text-amber-600' : 'text-amber-600'
-                                }`}
+                                className={`p-1.5 rounded hover:bg-slate-100 cursor-pointer ${c.is_active ? 'text-slate-500 hover:text-amber-600' : 'text-amber-600'
+                                  }`}
                               >
                                 <Power className="h-3.5 w-3.5" />
                               </button>
@@ -557,9 +551,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
           open={detailModalOpen}
           onOpenChange={(open) => !open && setDetailModalOpen(false)}
           title={`${detail360.customer.company_name || detail360.customer.contact_person} (360° Overview)`}
-          description={`Comprehensive financial ledger and sales history • Registered in ${
-            detail360.customer.billing_emirate || 'UAE'
-          }`}
+          description={`Comprehensive financial ledger and sales history • Registered in ${detail360.customer.billing_emirate || 'UAE'
+            }`}
           maxWidth="2xl"
           footer={
             <div className="flex items-center justify-between w-full">
@@ -629,11 +622,10 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                 </div>
               </div>
               <div
-                className={`p-3 rounded-xl border ${
-                  detail360.totalBalanceDue > 0
+                className={`p-3 rounded-xl border ${detail360.totalBalanceDue > 0
                     ? 'bg-rose-50/60 border-rose-200 text-rose-800'
                     : 'bg-slate-50 border-slate-200 text-slate-900'
-                }`}
+                  }`}
               >
                 <div className="text-[10px] font-semibold uppercase">Outstanding Due</div>
                 <div className="text-base font-bold mt-0.5">
@@ -701,8 +693,8 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
                               inv.status === 'PAID'
                                 ? 'success'
                                 : inv.status === 'OVERDUE'
-                                ? 'danger'
-                                : 'info'
+                                  ? 'danger'
+                                  : 'info'
                             }
                           >
                             {inv.status}
@@ -830,7 +822,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
               <div>
                 <Input
                   label="Legal Company Name *"
-                  placeholder="e.g. Dubai Logistics Global FZ-LLC"
+                  placeholder=""
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                 />
@@ -840,7 +832,7 @@ export function CustomersView({ onSelectCustomerForInvoice, onSelectCustomerForQ
             <div>
               <Input
                 label="Primary Contact Person *"
-                placeholder="e.g. Farhan Siddiqui"
+                placeholder=""
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
               />

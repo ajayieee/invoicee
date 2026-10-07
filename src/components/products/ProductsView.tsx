@@ -513,7 +513,10 @@ export function ProductsView() {
               label="Product Category"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              options={categories.map((c) => ({ label: c.name, value: c.id }))}
+              options={[
+                { label: 'Select a category (Optional)', value: '' },
+                ...categories.map((c) => ({ label: c.name, value: c.id })),
+              ]}
             />
             <div>
               <Select

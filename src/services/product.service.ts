@@ -56,6 +56,10 @@ class ProductService {
     return db.getProductCategories();
   }
 
+  addCategory(name: string, description?: string): ProductCategory {
+    return db.addProductCategory({ name, description });
+  }
+
   getVatRates(): VatRate[] {
     return db.getVatRates();
   }
