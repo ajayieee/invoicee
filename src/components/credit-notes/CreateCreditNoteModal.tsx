@@ -291,7 +291,7 @@ export function CreateCreditNoteModal({
             value={selectedInvoiceId}
             onChange={(e) => handleInvoiceChange(e.target.value)}
             options={eligibleInvoices.map((inv) => ({
-              label: `${inv.invoice_number} • ${inv.customer_snapshot.company_name || inv.customer_snapshot.contact_person} (${formatCurrency(inv.grand_total)})`,
+              label: `${inv.invoice_number} • ${inv.customer_snapshot?.company_name || inv.customer_snapshot?.contact_person || (inv as any).customerSnapshot?.companyName || 'Customer'} (${formatCurrency(inv.grand_total)})`,
               value: inv.id,
             }))}
           />

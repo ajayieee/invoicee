@@ -253,13 +253,15 @@ class InvoiceService {
       items = items.filter((inv) => {
         const numMatch = inv.invoice_number.toLowerCase().includes(q);
         const custNameMatch = (
-          inv.customer_snapshot.company_name ||
-          inv.customer_snapshot.contact_person ||
+          inv.customer_snapshot?.company_name ||
+          inv.customer_snapshot?.contact_person ||
+          (inv as any).customerSnapshot?.companyName ||
+          (inv as any).customerSnapshot?.contactPerson ||
           ''
         )
           .toLowerCase()
           .includes(q);
-        const trnMatch = (inv.customer_snapshot.trn || '').toLowerCase().includes(q);
+        const trnMatch = (inv.customer_snapshot?.trn || (inv as any).customerSnapshot?.trn || '').toLowerCase().includes(q);
         const refMatch = (inv.reference_number || '').toLowerCase().includes(q);
         const poMatch = (inv.po_number || '').toLowerCase().includes(q);
         return numMatch || custNameMatch || trnMatch || refMatch || poMatch;

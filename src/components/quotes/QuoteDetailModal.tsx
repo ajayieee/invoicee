@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FileText,
   Calendar,
@@ -21,6 +21,7 @@ import {
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { Quote, QuoteStatus } from '@/types/database';
 import { quoteService } from '@/services/quote.service';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -34,6 +35,7 @@ interface QuoteDetailModalProps {
   onConverted?: (invoiceId: string) => void;
   onPrint?: (docType: 'QUOTE' | 'INVOICE', docId: string) => void;
   onRefresh?: () => void;
+  onDeleted?: (quoteNumber: string) => void;
 }
 
 export function QuoteDetailModal({
@@ -44,8 +46,13 @@ export function QuoteDetailModal({
   onConverted,
   onPrint,
   onRefresh,
+  onDeleted,
 }: QuoteDetailModalProps) {
   const { permissions, user } = useAuth();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const isAdmin = user.role === 'OWNER' || user.role === 'ADMIN';
 
   if (!quoteId) return null;
   const quote = quoteService.getQuoteById(quoteId);
@@ -53,8 +60,29 @@ export function QuoteDetailModal({
 
   const isExpired = new Date(quote.expiry_date) < new Date() && quote.status !== 'CONVERTED';
 
-  const handleStatusTransition = (newStatus: QuoteStatus) => {
-    const res = quoteService.updateQuoteStatus(quote.id, newStatus, user.name);
+  const handleConfirmDelete = async () => {
+    if (!quote) return;
+    setIsDeleting(true);
+    try {
+      const res = await quoteService.deleteQuote(quote.id, user.name);
+      if (!res.success) {
+        alert(res.error || 'Failed to delete quotation.');
+        return;
+      }
+      setConfirmDeleteOpen(false);
+      onOpenChange(false);
+      if (onDeleted) {
+        onDeleted(quote.quote_number);
+      } else if (onRefresh) {
+        onRefresh();
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleStatusTransition = async (newStatus: QuoteStatus) => {
+    const res = await quoteService.updateQuoteStatus(quote.id, newStatus, user.name);
     if (!res.success) {
       alert(res.error || 'Failed to update quote status.');
       return;
@@ -62,8 +90,8 @@ export function QuoteDetailModal({
     if (onRefresh) onRefresh();
   };
 
-  const handleDuplicate = () => {
-    const res = quoteService.duplicateQuote(quote.id, user.name);
+  const handleDuplicate = async () => {
+    const res = await quoteService.duplicateQuote(quote.id, user.name);
     if (!res.success) {
       alert(res.error || 'Failed to duplicate quote.');
       return;
@@ -73,8 +101,8 @@ export function QuoteDetailModal({
     onOpenChange(false);
   };
 
-  const handleConvert = () => {
-    const res = quoteService.convertQuoteToInvoice(quote.id, user.name);
+  const handleConvert = async () => {
+    const res = await quoteService.convertQuoteToInvoice(quote.id, user.name);
     if (!res.success) {
       alert(res.error || 'Failed to convert quotation.');
       return;
@@ -87,7 +115,8 @@ export function QuoteDetailModal({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title={`Quotation ${quote.quote_number}`}
@@ -131,6 +160,20 @@ export function QuoteDetailModal({
               >
                 <Edit2 className="h-3.5 w-3.5" />
                 <span>Edit Draft</span>
+              </Button>
+            )}
+
+            {/* Delete button (Admin only, non-converted) */}
+            {isAdmin && quote.status !== 'CONVERTED' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmDeleteOpen(true)}
+                className="flex items-center gap-1.5 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
+                title="Permanently delete quotation"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete</span>
               </Button>
             )}
           </div>
@@ -369,6 +412,24 @@ export function QuoteDetailModal({
           </div>
         )}
       </div>
-    </Dialog>
+      </Dialog>
+
+      {confirmDeleteOpen && (
+        <ConfirmDeleteModal
+          open={confirmDeleteOpen}
+          onOpenChange={setConfirmDeleteOpen}
+          title="Confirm Delete Quotation"
+          itemType="quotation"
+          itemName={`${quote.quote_number} (${quote.customer_name})`}
+          description={
+            quote.status === 'ACCEPTED'
+              ? 'Warning: Client accepted this quotation. To delete, reject or cancel the quote first.'
+              : 'This action is permanent and will remove the quotation and its line items. Converted quotations cannot be deleted.'
+          }
+          isLoading={isDeleting}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
+    </>
   );
 }

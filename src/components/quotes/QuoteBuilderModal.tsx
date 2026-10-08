@@ -57,9 +57,12 @@ export function QuoteBuilderModal({
   const [quickCustTrn, setQuickCustTrn] = useState('');
   const [quickCustEmirate, setQuickCustEmirate] = useState('DUBAI');
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Initialize or reset form
   useEffect(() => {
     if (open) {
+      setIsSubmitting(false);
       setFieldErrors({});
       setFormError(null);
 
@@ -174,9 +177,10 @@ export function QuoteBuilderModal({
     setItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleSaveQuote = (saveAsStatus: 'DRAFT' | 'SENT') => {
+  const handleSaveQuote = async (saveAsStatus: 'DRAFT' | 'SENT') => {
     setFieldErrors({});
     setFormError(null);
+    setIsSubmitting(true);
 
     const payload = {
       customer_id: customerId,
@@ -188,29 +192,37 @@ export function QuoteBuilderModal({
       notes,
       terms,
       currency: 'AED',
+      status: saveAsStatus,
     };
 
-    const res = initialQuoteId
-      ? quoteService.updateQuote(initialQuoteId, payload, user.name)
-      : quoteService.createQuote(payload, user.name);
+    try {
+      const res = initialQuoteId
+        ? await quoteService.updateQuote(initialQuoteId, payload, user.name)
+        : await quoteService.createQuote(payload, user.name);
 
-    if (!res.success) {
-      if (res.errors) {
-        setFieldErrors(res.errors);
+      if (!res.success) {
+        if (res.errors) {
+          setFieldErrors(res.errors);
+        }
+        setFormError(res.error || 'Please resolve the highlighted validation errors.');
+        setIsSubmitting(false);
+        return;
       }
-      setFormError(res.error || 'Please resolve the highlighted validation errors.');
-      return;
+
+      const savedQuote = res.data!;
+
+      // If updating an existing draft and transitioning to SENT
+      if (initialQuoteId && saveAsStatus === 'SENT' && savedQuote.status !== 'SENT') {
+        await quoteService.updateQuoteStatus(savedQuote.id, 'SENT', user.name);
+      }
+
+      setIsSubmitting(false);
+      onOpenChange(false);
+      onSuccess(savedQuote.id);
+    } catch (e: any) {
+      setFormError(e.message || 'An unexpected error occurred while saving.');
+      setIsSubmitting(false);
     }
-
-    const savedQuote = res.data!;
-
-    // If user clicked Save & Send
-    if (saveAsStatus === 'SENT') {
-      quoteService.updateQuoteStatus(savedQuote.id, 'SENT', user.name);
-    }
-
-    onOpenChange(false);
-    onSuccess(savedQuote.id);
   };
 
   const handleQuickCreateCustomer = async () => {
@@ -264,14 +276,19 @@ export function QuoteBuilderModal({
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
-              <Button variant="secondary" onClick={() => onOpenChange(false)}>
+              <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button variant="outline" onClick={() => handleSaveQuote('DRAFT')}>
-                Save as Draft
+              <Button variant="outline" onClick={() => handleSaveQuote('DRAFT')} disabled={isSubmitting}>
+                {isSubmitting ? 'Saving...' : 'Save as Draft'}
               </Button>
-              <Button variant="emerald" onClick={() => handleSaveQuote('SENT')} className="font-semibold shadow-xs">
-                Save & Mark as Sent
+              <Button
+                variant="emerald"
+                onClick={() => handleSaveQuote('SENT')}
+                className="font-semibold shadow-xs"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save & Mark as Sent'}
               </Button>
             </div>
           </div>

@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Receipt,
   Filter,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -27,6 +28,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/SkeletonTable';
 import { AlertBanner } from '@/components/ui/FormError';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { Quote, QuoteStatus } from '@/types/database';
 import { quoteService } from '@/services/quote.service';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -41,6 +43,7 @@ interface QuotesViewProps {
 
 export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) {
   const { user, permissions } = useAuth();
+  const isAdmin = user.role === 'OWNER' || user.role === 'ADMIN';
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'ALL'>('ALL');
@@ -66,10 +69,19 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
   // Feedback Banner
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
+  // Delete Confirmation State
+  const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchQuotes = async () => {
     setLoading(true);
     try {
-      await quoteService.syncQuotes();
+      await quoteService.syncQuotes({
+        search,
+        status: statusFilter,
+        page: currentPage,
+        pageSize,
+      });
     } catch (e) {
       console.warn('Quote cloud sync failed:', e);
     }
@@ -87,8 +99,8 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
     fetchQuotes();
   }, [search, statusFilter, currentPage, pageSize]);
 
-  const handleStatusChange = (id: string, newStatus: QuoteStatus) => {
-    const res = quoteService.updateQuoteStatus(id, newStatus, user.name);
+  const handleStatusChange = async (id: string, newStatus: QuoteStatus) => {
+    const res = await quoteService.updateQuoteStatus(id, newStatus, user.name);
     if (!res.success) {
       setFeedback({ type: 'error', message: res.error || 'Failed to update quote status.' });
       return;
@@ -101,8 +113,8 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
     fetchQuotes();
   };
 
-  const handleConvert = (quoteId: string) => {
-    const res = quoteService.convertQuoteToInvoice(quoteId, user.name);
+  const handleConvert = async (quoteId: string) => {
+    const res = await quoteService.convertQuoteToInvoice(quoteId, user.name);
     if (!res.success) {
       setFeedback({ type: 'error', message: res.error || 'Failed to convert quotation to invoice.' });
       return;
@@ -121,8 +133,8 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
     }
   };
 
-  const handleDuplicate = (quoteId: string) => {
-    const res = quoteService.duplicateQuote(quoteId, user.name);
+  const handleDuplicate = async (quoteId: string) => {
+    const res = await quoteService.duplicateQuote(quoteId, user.name);
     if (!res.success) {
       setFeedback({ type: 'error', message: res.error || 'Failed to duplicate quotation.' });
       return;
@@ -134,6 +146,34 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
     });
     setTimeout(() => setFeedback(null), 4000);
     fetchQuotes();
+  };
+
+  const handleDeleteClick = (q: Quote) => {
+    setQuoteToDelete(q);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!quoteToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await quoteService.deleteQuote(quoteToDelete.id, user.name);
+      if (!res.success) {
+        setFeedback({
+          type: 'error',
+          message: res.error || 'Failed to delete quotation.',
+        });
+        return;
+      }
+      setFeedback({
+        type: 'success',
+        message: `Quotation "${quoteToDelete.quote_number}" deleted successfully.`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
+      setQuoteToDelete(null);
+      await fetchQuotes();
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleOpenDetail = (id: string) => {
@@ -356,6 +396,17 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
                               <Copy className="h-3.5 w-3.5" />
                             </button>
 
+                            {/* Delete (Admin only, non-converted) */}
+                            {isAdmin && q.status !== 'CONVERTED' && (
+                              <button
+                                onClick={() => handleDeleteClick(q)}
+                                title={`Delete quotation ${q.quote_number}`}
+                                className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+
                             {/* Send Trigger */}
                             {q.status === 'DRAFT' && permissions.canApproveQuote && (
                               <Button
@@ -460,6 +511,32 @@ export function QuotesView({ onViewInvoice, onPrintDocument }: QuotesViewProps) 
         }}
         onPrint={(type, id) => onPrintDocument && onPrintDocument(type, id)}
         onRefresh={() => fetchQuotes()}
+        onDeleted={(quoteNumber) => {
+          setFeedback({
+            type: 'success',
+            message: `Quotation "${quoteNumber}" deleted successfully.`,
+          });
+          setTimeout(() => setFeedback(null), 4000);
+          fetchQuotes();
+        }}
+      />
+
+      {/* Delete Quotation Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={!!quoteToDelete}
+        onOpenChange={(open) => {
+          if (!open) setQuoteToDelete(null);
+        }}
+        title="Confirm Delete Quotation"
+        itemType="quotation"
+        itemName={quoteToDelete ? `${quoteToDelete.quote_number} (${quoteToDelete.customer_name})` : undefined}
+        description={
+          quoteToDelete?.status === 'ACCEPTED'
+            ? 'Warning: Client accepted this quotation. To delete, reject or cancel the quote first.'
+            : 'This action is permanent and will remove the quotation and its line items. Converted quotations cannot be deleted.'
+        }
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

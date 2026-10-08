@@ -271,8 +271,10 @@ export function RecordPaymentModal({
             {targetInvoice && (
               <option value={targetInvoice.id}>
                 {targetInvoice.invoice_number} —{' '}
-                {targetInvoice.customer_snapshot.company_name ||
-                  targetInvoice.customer_snapshot.contact_person}{' '}
+                {targetInvoice.customer_snapshot?.company_name ||
+                  targetInvoice.customer_snapshot?.contact_person ||
+                  (targetInvoice as any).customerSnapshot?.companyName ||
+                  'Customer'}{' '}
                 (Balance Due: {formatCurrency(targetInvoice.balance_due)})
               </option>
             )}
@@ -280,8 +282,10 @@ export function RecordPaymentModal({
               eligibleInvoices.map((inv) => (
                 <option key={inv.id} value={inv.id}>
                   {inv.invoice_number} —{' '}
-                  {inv.customer_snapshot.company_name ||
-                    inv.customer_snapshot.contact_person}{' '}
+                  {inv.customer_snapshot?.company_name ||
+                    inv.customer_snapshot?.contact_person ||
+                    (inv as any).customerSnapshot?.companyName ||
+                    'Customer'}{' '}
                   • Date: {formatDate(inv.invoice_date)} • Due: {formatCurrency(inv.balance_due)}
                 </option>
               ))}

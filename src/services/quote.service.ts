@@ -31,6 +31,8 @@ export interface QuoteLineItemInput {
   discount_type?: DiscountType;
   discount_value?: number;
   vat_rate_id: string;
+  vat_rate_percentage?: number;
+  vat_treatment?: string;
 }
 
 export interface QuoteInput {
@@ -43,6 +45,8 @@ export interface QuoteInput {
   notes?: string;
   terms?: string;
   currency?: string;
+  reference_number?: string;
+  status?: QuoteStatus;
 }
 
 class QuoteService {
@@ -214,7 +218,7 @@ class QuoteService {
   /**
    * Creates a new quotation.
    */
-  public createQuote(data: QuoteInput, performedBy = 'Current User'): ServiceResponse<Quote> {
+  public async createQuote(data: QuoteInput, performedBy = 'Current User'): Promise<ServiceResponse<Quote>> {
     const errors = this.validateQuote(data);
     if (Object.keys(errors).length > 0) {
       return {
@@ -227,11 +231,13 @@ class QuoteService {
     try {
       const vatRates = db.getVatRates();
       const calcResult = this.calculateQuoteTotals(data.items, data.discount_type, data.discount_value);
+      const targetStatus: QuoteStatus = data.status || 'DRAFT';
 
       // Build prepared line items
       const processedItems: LineItem[] = data.items.map((it, idx) => {
         const vat = vatRates.find((v) => v.id === it.vat_rate_id);
         const lineCalc = calcResult.items[idx];
+        const treatment = it.vat_treatment || vat?.treatment || 'STANDARD_RATED';
 
         return {
           id: it.id || `quo-item-${Date.now()}-${idx}`,
@@ -247,6 +253,7 @@ class QuoteService {
           subtotal_net: lineCalc.subtotal_net,
           vat_rate_id: it.vat_rate_id,
           vat_rate_percentage: vat?.rate_percentage ?? 5.0,
+          vat_treatment: treatment as any,
           vat_amount: lineCalc.vat_amount,
           total_gross: lineCalc.total_gross,
         };
@@ -254,6 +261,48 @@ class QuoteService {
 
       const customer = db.getCustomerById(data.customer_id);
 
+      const payload = {
+        customerId: data.customer_id,
+        quoteDate: data.quote_date,
+        validUntil: data.expiry_date,
+        referenceNumber: data.reference_number || '',
+        items: data.items.map((it) => {
+          const vat = vatRates.find((v) => v.id === it.vat_rate_id);
+          return {
+            description: it.description,
+            quantity: Number(it.quantity),
+            unit: it.unit || 'Unit',
+            unitPrice: Number(it.unit_price),
+            vatRateId: it.vat_rate_id,
+            vatRatePercentage: vat?.rate_percentage ?? 5.0,
+            vatTreatment: vat?.treatment || 'STANDARD_RATED',
+            discountType: it.discount_type || 'PERCENTAGE',
+            discountValue: Number(it.discount_value) || 0,
+            productId: it.product_id,
+          };
+        }),
+        discountType: data.discount_type || 'PERCENTAGE',
+        discountValue: Number(data.discount_value) || 0,
+        notes: data.notes?.trim() || undefined,
+        terms: data.terms?.trim() || undefined,
+        status: targetStatus,
+      };
+
+      // 1. Save directly to MongoDB Atlas
+      try {
+        const cloudRes = await apiClient.post<{ success: boolean; data: Quote }>('/quotes', payload);
+        if (cloudRes && cloudRes.success && cloudRes.data) {
+          const synced = db.upsertQuote(cloudRes.data);
+          return {
+            success: true,
+            data: synced,
+          };
+        }
+      } catch (cloudErr: any) {
+        console.warn('[QuoteService] Cloud quote save failed, saving to local store:', cloudErr.message);
+      }
+
+      // 2. Fallback to local storage if API is unreachable
       const saved = db.saveQuote({
         customer_id: data.customer_id,
         customer_name: customer?.company_name || customer?.contact_person || 'Client',
@@ -261,7 +310,7 @@ class QuoteService {
         customer_trn: customer?.trn,
         quote_date: data.quote_date,
         expiry_date: data.expiry_date,
-        status: 'DRAFT',
+        status: targetStatus,
         currency: data.currency || 'AED',
         exchange_rate: 1.0,
         subtotal_net: calcResult.subtotal_net,
@@ -274,37 +323,6 @@ class QuoteService {
         terms: data.terms?.trim() || undefined,
         items: processedItems,
       });
-
-      // Background cloud sync to MongoDB Atlas
-      apiClient
-        .post<{ success: boolean; data: Quote }>('/quotes', {
-          customerId: data.customer_id,
-          quoteDate: data.quote_date,
-          validUntil: data.expiry_date,
-          items: data.items.map((it) => ({
-            description: it.description,
-            quantity: Number(it.quantity),
-            unit: it.unit || 'Unit',
-            unitPrice: Number(it.unit_price),
-            vatRateId: it.vat_rate_id,
-            discountType: it.discount_type || 'PERCENTAGE',
-            discountValue: Number(it.discount_value) || 0,
-            productId: it.product_id,
-          })),
-          discountType: data.discount_type || 'PERCENTAGE',
-          discountValue: Number(data.discount_value) || 0,
-          notes: data.notes?.trim() || undefined,
-          terms: data.terms?.trim() || undefined,
-          status: 'DRAFT',
-        })
-        .then((cloudRes) => {
-          if (cloudRes && cloudRes.success && cloudRes.data) {
-            db.upsertQuote(cloudRes.data);
-          }
-        })
-        .catch((e) => {
-          console.warn('[QuoteService] Cloud quote background error:', e.message);
-        });
 
       return {
         success: true,
@@ -322,11 +340,11 @@ class QuoteService {
    * Updates an existing quotation.
    * Accounting guard: Only DRAFT quotations can be edited.
    */
-  public updateQuote(
+  public async updateQuote(
     id: string,
     data: QuoteInput,
     performedBy = 'Current User'
-  ): ServiceResponse<Quote> {
+  ): Promise<ServiceResponse<Quote>> {
     const existing = db.getQuoteById(id);
     if (!existing) {
       return { success: false, error: 'Quotation not found.' };
@@ -377,6 +395,46 @@ class QuoteService {
 
       const customer = db.getCustomerById(data.customer_id);
 
+      const payload = {
+        customerId: data.customer_id,
+        quoteDate: data.quote_date,
+        validUntil: data.expiry_date,
+        referenceNumber: data.reference_number || '',
+        items: data.items.map((it) => {
+          const vat = vatRates.find((v) => v.id === it.vat_rate_id);
+          return {
+            description: it.description,
+            quantity: Number(it.quantity),
+            unit: it.unit || 'Unit',
+            unitPrice: Number(it.unit_price),
+            vatRateId: it.vat_rate_id,
+            vatRatePercentage: vat?.rate_percentage ?? 5.0,
+            vatTreatment: vat?.treatment || 'STANDARD_RATED',
+            discountType: it.discount_type || 'PERCENTAGE',
+            discountValue: Number(it.discount_value) || 0,
+            productId: it.product_id,
+          };
+        }),
+        discountType: data.discount_type || 'PERCENTAGE',
+        discountValue: Number(data.discount_value) || 0,
+        notes: data.notes?.trim() || undefined,
+        terms: data.terms?.trim() || undefined,
+        status: data.status || existing.status,
+      };
+
+      try {
+        const cloudRes = await apiClient.put<{ success: boolean; data: Quote }>(`/quotes/${id}`, payload);
+        if (cloudRes && cloudRes.success && cloudRes.data) {
+          const synced = db.upsertQuote(cloudRes.data);
+          return {
+            success: true,
+            data: synced,
+          };
+        }
+      } catch (cloudErr: any) {
+        console.warn('[QuoteService] Cloud quote update failed, updating local store:', cloudErr.message);
+      }
+
       const saved = db.saveQuote({
         id,
         customer_id: data.customer_id,
@@ -385,7 +443,7 @@ class QuoteService {
         customer_trn: customer?.trn,
         quote_date: data.quote_date,
         expiry_date: data.expiry_date,
-        status: existing.status,
+        status: data.status || existing.status,
         currency: data.currency || existing.currency,
         exchange_rate: 1.0,
         subtotal_net: calcResult.subtotal_net,
@@ -414,11 +472,11 @@ class QuoteService {
   /**
    * Updates status of quote (DRAFT -> SENT, SENT -> ACCEPTED / REJECTED / EXPIRED).
    */
-  public updateQuoteStatus(
+  public async updateQuoteStatus(
     id: string,
     newStatus: QuoteStatus,
     performedBy = 'Current User'
-  ): ServiceResponse<Quote> {
+  ): Promise<ServiceResponse<Quote>> {
     const existing = db.getQuoteById(id);
     if (!existing) {
       return { success: false, error: 'Quotation not found.' };
@@ -432,6 +490,21 @@ class QuoteService {
     }
 
     try {
+      try {
+        const cloudRes = await apiClient.patch<{ success: boolean; data: Quote }>(`/quotes/${id}/status`, {
+          status: newStatus,
+        });
+        if (cloudRes && cloudRes.success && cloudRes.data) {
+          const synced = db.upsertQuote(cloudRes.data);
+          return {
+            success: true,
+            data: synced,
+          };
+        }
+      } catch (cloudErr: any) {
+        console.warn('[QuoteService] Cloud quote status update failed, updating local store:', cloudErr.message);
+      }
+
       const updated = db.updateQuoteStatus(id, newStatus);
       return {
         success: true,
@@ -448,7 +521,7 @@ class QuoteService {
   /**
    * Duplicates an existing quotation into a new DRAFT proposal.
    */
-  public duplicateQuote(id: string, performedBy = 'Current User'): ServiceResponse<Quote> {
+  public async duplicateQuote(id: string, performedBy = 'Current User'): Promise<ServiceResponse<Quote>> {
     const original = db.getQuoteById(id);
     if (!original) {
       return { success: false, error: 'Quotation to duplicate not found.' };
@@ -469,7 +542,7 @@ class QuoteService {
         vat_rate_id: it.vat_rate_id,
       }));
 
-      const newQuoteRes = this.createQuote(
+      const newQuoteRes = await this.createQuote(
         {
           customer_id: original.customer_id,
           quote_date: today,
@@ -480,6 +553,7 @@ class QuoteService {
           notes: original.notes,
           terms: original.terms,
           currency: original.currency,
+          status: 'DRAFT',
         },
         performedBy
       );
@@ -502,10 +576,10 @@ class QuoteService {
    * - Sets quote status to CONVERTED and links converted_invoice_id
    * - Original quote content is never mutated or corrupted
    */
-  public convertQuoteToInvoice(
+  public async convertQuoteToInvoice(
     quoteId: string,
     performedBy = 'Current User'
-  ): ServiceResponse<Invoice> {
+  ): Promise<ServiceResponse<Invoice>> {
     const quote = db.getQuoteById(quoteId);
     if (!quote) {
       return { success: false, error: 'Quotation not found.' };
@@ -522,6 +596,22 @@ class QuoteService {
     }
 
     try {
+      // 1. Try server convert
+      try {
+        const cloudRes = await apiClient.post<{ success: boolean; data: Invoice }>(`/quotes/${quoteId}/convert`);
+        if (cloudRes && cloudRes.success && cloudRes.data) {
+          const inv = db.upsertInvoice(cloudRes.data);
+          db.updateQuoteStatus(quoteId, 'CONVERTED');
+          return {
+            success: true,
+            data: inv,
+          };
+        }
+      } catch (cloudErr: any) {
+        console.warn('[QuoteService] Cloud quote convert failed, converting locally:', cloudErr.message);
+      }
+
+      // 2. Local fallback
       const invoice = db.convertQuoteToInvoice(quoteId);
       return {
         success: true,
@@ -538,7 +628,7 @@ class QuoteService {
   /**
    * Deletes a quotation. Guard: only allowed for DRAFT or REJECTED quotes.
    */
-  public deleteQuote(id: string, performedBy = 'Current User'): ServiceResponse<boolean> {
+  public async deleteQuote(id: string, performedBy = 'Current User'): Promise<ServiceResponse<boolean>> {
     const existing = db.getQuoteById(id);
     if (!existing) {
       return { success: false, error: 'Quotation not found.' };
@@ -559,6 +649,11 @@ class QuoteService {
     }
 
     try {
+      try {
+        await apiClient.delete(`/quotes/${id}`);
+      } catch (cloudErr: any) {
+        console.warn('[QuoteService] Cloud quote delete error:', cloudErr.message);
+      }
       db.deleteQuote(id);
       return { success: true, data: true };
     } catch (e: any) {

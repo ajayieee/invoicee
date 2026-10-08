@@ -70,6 +70,20 @@ class ApiClient {
     return data;
   }
 
+  async patch<T>(endpoint: string, body?: any): Promise<T> {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `HTTP error ${res.status}`);
+    }
+    return data;
+  }
+
   async delete<T>(endpoint: string): Promise<T> {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',

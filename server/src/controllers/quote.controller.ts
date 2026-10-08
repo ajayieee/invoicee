@@ -6,6 +6,7 @@ import { Invoice } from '../models/Invoice.js';
 import { CompanySettings } from '../models/CompanySettings.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { ServerVatCalculator } from '../utils/vatCalculator.js';
+import { serializeInvoice } from './invoice.controller.js';
 
 export function serializeQuote(doc: any) {
   if (!doc) return null;
@@ -165,7 +166,20 @@ export async function createQuote(req: Request, res: Response): Promise<void> {
       status = 'DRAFT',
     } = req.body;
 
-    const customer = await Customer.findById(customerId);
+    let customer: any = null;
+    if (mongoose.Types.ObjectId.isValid(customerId)) {
+      customer = await Customer.findById(customerId);
+    }
+    if (!customer) {
+      customer = await Customer.findOne({
+        $or: [
+          { companyName: customerId },
+          { contactPerson: customerId },
+          { email: customerId },
+        ],
+      });
+    }
+
     if (!customer) {
       res.status(404).json({ success: false, error: 'Customer not found.' });
       return;
@@ -178,7 +192,17 @@ export async function createQuote(req: Request, res: Response): Promise<void> {
     const year = new Date(quoteDate || new Date()).getFullYear();
     const quoteNumber = `${prefix}-${year}-${String(nextSeq).padStart(5, '0')}`;
 
-    const calc = ServerVatCalculator.calculateDocument(items, discountType, discountValue);
+    // Normalize line items for server VAT calculation
+    const calcInputs = (items || []).map((it: any) => ({
+      quantity: Number(it.quantity ?? 1),
+      unitPrice: Number(it.unitPrice ?? it.unit_price ?? 0),
+      discountType: it.discountType || it.discount_type || 'PERCENTAGE',
+      discountValue: Number(it.discountValue ?? it.discount_value ?? 0),
+      vatRatePercentage: Number(it.vatRatePercentage ?? it.vat_rate_percentage ?? 5.0),
+      vatTreatment: it.vatTreatment || it.vat_treatment || 'STANDARD_RATED',
+    }));
+
+    const calc = ServerVatCalculator.calculateDocument(calcInputs, discountType, Number(discountValue || 0));
 
     const docItems = calc.items.map((it, idx) => ({
       itemOrder: idx + 1,
@@ -194,7 +218,9 @@ export async function createQuote(req: Request, res: Response): Promise<void> {
       vatTreatment: it.vatTreatment as any,
       vatAmount: it.vatAmount,
       totalGross: it.totalGross,
-      productId: items[idx]?.productId ? new mongoose.Types.ObjectId(items[idx].productId) : undefined,
+      productId: items[idx]?.productId && mongoose.Types.ObjectId.isValid(items[idx].productId)
+        ? new mongoose.Types.ObjectId(items[idx].productId)
+        : undefined,
     }));
 
     const newQuote = await Quote.create({
@@ -217,7 +243,7 @@ export async function createQuote(req: Request, res: Response): Promise<void> {
       items: docItems,
       subtotalNet: calc.subtotalNet,
       discountType: discountType || 'PERCENTAGE',
-      discountValue: discountValue || 0,
+      discountValue: Number(discountValue || 0),
       discountAmount: calc.discountAmount,
       vatTotal: calc.vatTotal,
       grandTotal: calc.grandTotal,
@@ -230,6 +256,217 @@ export async function createQuote(req: Request, res: Response): Promise<void> {
     });
 
     res.status(201).json({ success: true, data: serializeQuote(newQuote) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function updateQuote(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const {
+      customerId,
+      quoteDate,
+      validUntil,
+      referenceNumber,
+      items,
+      discountType,
+      discountValue,
+      notes,
+      terms,
+      status,
+    } = req.body;
+
+    const quote = await Quote.findById(id);
+    if (!quote) {
+      res.status(404).json({ success: false, error: 'Quotation not found.' });
+      return;
+    }
+
+    if (quote.status === 'CONVERTED') {
+      res.status(400).json({ success: false, error: 'Converted quotations cannot be modified.' });
+      return;
+    }
+
+    if (customerId) {
+      let customer: any = null;
+      if (mongoose.Types.ObjectId.isValid(customerId)) {
+        customer = await Customer.findById(customerId);
+      }
+      if (!customer) {
+        customer = await Customer.findOne({
+          $or: [
+            { companyName: customerId },
+            { contactPerson: customerId },
+            { email: customerId },
+          ],
+        });
+      }
+      if (customer) {
+        quote.customerId = customer._id;
+        quote.customerSnapshot = {
+          companyName: customer.companyName,
+          contactPerson: customer.contactPerson,
+          email: customer.email,
+          phone: customer.phone,
+          trn: customer.trn,
+          billingAddressLine1: customer.billingAddressLine1,
+          billingCity: customer.billingCity,
+          billingEmirate: customer.billingEmirate,
+        };
+      }
+    }
+
+    if (items && Array.isArray(items)) {
+      const calcInputs = items.map((it: any) => ({
+        quantity: Number(it.quantity ?? 1),
+        unitPrice: Number(it.unitPrice ?? it.unit_price ?? 0),
+        discountType: it.discountType || it.discount_type || 'PERCENTAGE',
+        discountValue: Number(it.discountValue ?? it.discount_value ?? 0),
+        vatRatePercentage: Number(it.vatRatePercentage ?? it.vat_rate_percentage ?? 5.0),
+        vatTreatment: it.vatTreatment || it.vat_treatment || 'STANDARD_RATED',
+      }));
+
+      const calc = ServerVatCalculator.calculateDocument(
+        calcInputs,
+        discountType ?? quote.discountType,
+        Number(discountValue ?? quote.discountValue)
+      );
+
+      quote.items = calc.items.map((it, idx) => ({
+        itemOrder: idx + 1,
+        description: items[idx]?.description || 'Service/Product',
+        quantity: it.quantity,
+        unit: items[idx]?.unit || 'Unit',
+        unitPrice: it.unitPrice,
+        discountType: it.discountType,
+        discountValue: it.discountValue,
+        discountAmount: it.discountAmount,
+        subtotalNet: it.subtotalNet,
+        vatRatePercentage: it.vatRatePercentage,
+        vatTreatment: it.vatTreatment as any,
+        vatAmount: it.vatAmount,
+        totalGross: it.totalGross,
+        productId: items[idx]?.productId && mongoose.Types.ObjectId.isValid(items[idx].productId)
+          ? new mongoose.Types.ObjectId(items[idx].productId)
+          : undefined,
+      })) as any;
+
+      quote.subtotalNet = calc.subtotalNet;
+      quote.discountType = (discountType ?? quote.discountType) as any;
+      quote.discountValue = Number(discountValue ?? quote.discountValue);
+      quote.discountAmount = calc.discountAmount;
+      quote.vatTotal = calc.vatTotal;
+      quote.grandTotal = calc.grandTotal;
+    }
+
+    if (quoteDate) quote.quoteDate = quoteDate;
+    if (validUntil) quote.validUntil = validUntil;
+    if (referenceNumber !== undefined) quote.referenceNumber = referenceNumber;
+    if (notes !== undefined) quote.notes = notes;
+    if (terms !== undefined) quote.terms = terms;
+    if (status) quote.status = status;
+
+    await quote.save();
+
+    await AuditLog.create({
+      organizationId: quote.organizationId,
+      entityType: 'QUOTE',
+      entityId: quote._id.toString(),
+      action: 'UPDATED',
+      performedByName: req.user?.name || 'System User',
+    });
+
+    res.json({ success: true, data: serializeQuote(quote) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function updateQuoteStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'];
+    if (!status || !validStatuses.includes(status)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid status "${status}". Allowed statuses: ${validStatuses.join(', ')}`,
+      });
+      return;
+    }
+
+    const quote = await Quote.findById(id);
+    if (!quote) {
+      res.status(404).json({ success: false, error: 'Quotation not found.' });
+      return;
+    }
+
+    if (quote.status === 'CONVERTED') {
+      res.status(400).json({
+        success: false,
+        error: 'Quotation has already been converted to a tax invoice and cannot change state.',
+      });
+      return;
+    }
+
+    const oldStatus = quote.status;
+    quote.status = status;
+    await quote.save();
+
+    await AuditLog.create({
+      organizationId: quote.organizationId,
+      entityType: 'QUOTE',
+      entityId: quote._id.toString(),
+      action: 'STATUS_CHANGE',
+      performedByName: req.user?.name || 'System User',
+      oldValues: { status: oldStatus },
+      newValues: { status },
+    });
+
+    res.json({ success: true, data: serializeQuote(quote) });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function deleteQuote(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const quote = await Quote.findById(id);
+    if (!quote) {
+      res.status(404).json({ success: false, error: 'Quotation not found.' });
+      return;
+    }
+
+    if (quote.status === 'CONVERTED') {
+      res.status(400).json({
+        success: false,
+        error: 'Cannot delete quotation: It has been converted to an official UAE Tax Invoice and must remain in the audit trail.',
+      });
+      return;
+    }
+
+    if (quote.status === 'ACCEPTED') {
+      res.status(400).json({
+        success: false,
+        error: 'Cannot delete quotation: Client has accepted this proposal. Reject or convert instead.',
+      });
+      return;
+    }
+
+    await Quote.findByIdAndDelete(id);
+
+    await AuditLog.create({
+      organizationId: quote.organizationId,
+      entityType: 'QUOTE',
+      entityId: id,
+      action: 'DELETED',
+      performedByName: req.user?.name || 'System User',
+    });
+
+    res.json({ success: true, message: 'Quotation deleted successfully.' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -307,7 +544,7 @@ export async function convertQuoteToInvoice(req: Request, res: Response): Promis
       newValues: { convertedInvoiceNumber: invoice.invoiceNumber },
     });
 
-    res.status(201).json({ success: true, data: invoice });
+    res.status(201).json({ success: true, data: serializeInvoice(invoice) });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

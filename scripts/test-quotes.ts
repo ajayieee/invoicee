@@ -30,7 +30,20 @@ async function runQuoteTestSuite() {
   const zeroVat = vatRates.find((v) => v.treatment === 'ZERO_RATED')!;
   const exemptVat = vatRates.find((v) => v.treatment === 'EXEMPT')!;
 
-  const testCustomer = customerService.getCustomers().items[0];
+  let testCustomer = customerService.getCustomers().items[0];
+  if (!testCustomer) {
+    testCustomer = db.saveCustomer({
+      customer_type: 'COMPANY',
+      relation_type: 'CUSTOMER',
+      company_name: 'Emaar Properties PJSC',
+      contact_person: 'Fatima Al-Mansoor',
+      email: 'fatima.mansoor@emaar.ae',
+      trn: '100023456700003',
+      billing_emirate: 'DUBAI',
+      billing_city: 'Dubai',
+      payment_terms_days: 30,
+    });
+  }
 
   // -------------------------------------------------------------
   // TEST SCENARIO 1: MATHEMATICAL & TAX ACCURACY
@@ -116,7 +129,7 @@ async function runQuoteTestSuite() {
   console.log('\n🔹 [2/4] Testing Quotation Lifecycle & Audit Safeguards...');
 
   // Create Draft Quote
-  const createRes = quoteService.createQuote({
+  const createRes = await quoteService.createQuote({
     customer_id: testCustomer.id,
     quote_date: '2026-03-01',
     expiry_date: '2026-03-31',
@@ -147,7 +160,7 @@ async function runQuoteTestSuite() {
   assert(createRes.data!.grand_total === 52500, 'Grand Total calculated: (40k + 10k) + 5% VAT = 52,500 AED');
 
   // Edit Draft Quote
-  const updateDraftRes = quoteService.updateQuote(quoteId, {
+  const updateDraftRes = await quoteService.updateQuote(quoteId, {
     customer_id: testCustomer.id,
     quote_date: '2026-03-01',
     expiry_date: '2026-04-15',
@@ -176,11 +189,11 @@ async function runQuoteTestSuite() {
   );
 
   // Transition DRAFT -> SENT
-  const sendRes = quoteService.updateQuoteStatus(quoteId, 'SENT');
+  const sendRes = await quoteService.updateQuoteStatus(quoteId, 'SENT');
   assert(sendRes.success && sendRes.data?.status === 'SENT', 'TRANSITION: Quote marked as SENT');
 
   // Audit Safeguard: Cannot edit SENT quote
-  const editSentRes = quoteService.updateQuote(quoteId, {
+  const editSentRes = await quoteService.updateQuote(quoteId, {
     customer_id: testCustomer.id,
     quote_date: '2026-03-01',
     expiry_date: '2026-04-15',
@@ -200,7 +213,7 @@ async function runQuoteTestSuite() {
   );
 
   // Transition SENT -> ACCEPTED
-  const acceptRes = quoteService.updateQuoteStatus(quoteId, 'ACCEPTED');
+  const acceptRes = await quoteService.updateQuoteStatus(quoteId, 'ACCEPTED');
   assert(acceptRes.success && acceptRes.data?.status === 'ACCEPTED', 'TRANSITION: Quote marked as ACCEPTED');
 
   // -------------------------------------------------------------
@@ -208,7 +221,7 @@ async function runQuoteTestSuite() {
   // -------------------------------------------------------------
   console.log('\n🔹 [3/4] Testing Quote Duplication (Cloning)...');
 
-  const dupRes = quoteService.duplicateQuote(quoteId);
+  const dupRes = await quoteService.duplicateQuote(quoteId);
   assert(dupRes.success && !!dupRes.data, 'DUPLICATE: Clones quotation into new proposal');
   const dupQuote = dupRes.data!;
   assert(dupQuote.id !== quoteId, 'DUPLICATE: Generates new unique quotation ID');
@@ -223,7 +236,7 @@ async function runQuoteTestSuite() {
   console.log('\n🔹 [4/4] Testing Quote-to-Invoice Conversion Protocol...');
 
   // Convert ACCEPTED quote to Tax Invoice
-  const convertRes = quoteService.convertQuoteToInvoice(quoteId);
+  const convertRes = await quoteService.convertQuoteToInvoice(quoteId);
   assert(convertRes.success && !!convertRes.data, 'CONVERT: Successfully converts quotation to invoice');
   const createdInvoice = convertRes.data!;
 
@@ -295,17 +308,28 @@ async function runQuoteTestSuite() {
   );
 
   // 4.6 Idempotency: Re-converting returns existing invoice
-  const reConvertRes = quoteService.convertQuoteToInvoice(quoteId);
+  const reConvertRes = await quoteService.convertQuoteToInvoice(quoteId);
   assert(
     reConvertRes.data?.id === createdInvoice.id,
     'CONVERT IDEMPOTENCY: Re-converting returns existing invoice without generating duplicates'
   );
 
   // 4.7 Guard: Cannot delete converted quote
-  const delConverted = quoteService.deleteQuote(quoteId);
+  const delConverted = await quoteService.deleteQuote(quoteId);
   assert(
     Boolean(!delConverted.success && delConverted.error?.includes('official UAE Tax Invoice')),
     'DELETE GUARD: Prevents deleting converted quote'
+  );
+
+  // 4.8 Delete DRAFT quote successfully
+  const delDraft = await quoteService.deleteQuote(dupQuote.id);
+  assert(
+    delDraft.success === true && delDraft.data === true,
+    'DELETE SUCCESS: Administrator can delete draft quotation'
+  );
+  assert(
+    db.getQuoteById(dupQuote.id) === undefined,
+    'DELETE VERIFY: Deleted draft quotation is removed from database'
   );
 
   // Summary

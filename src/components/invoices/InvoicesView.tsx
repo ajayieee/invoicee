@@ -317,10 +317,16 @@ export function InvoicesView({
                         )}
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-800">
-                        <div>{inv.customer_snapshot.company_name || inv.customer_snapshot.contact_person}</div>
-                        {inv.customer_snapshot.trn && (
+                        <div>
+                          {inv.customer_snapshot?.company_name ||
+                            inv.customer_snapshot?.contact_person ||
+                            (inv as any).customerSnapshot?.companyName ||
+                            (inv as any).customerSnapshot?.contactPerson ||
+                            'Customer'}
+                        </div>
+                        {(inv.customer_snapshot?.trn || (inv as any).customerSnapshot?.trn) && (
                           <div className="text-[10px] text-slate-400 font-mono">
-                            TRN: {inv.customer_snapshot.trn}
+                            TRN: {inv.customer_snapshot?.trn || (inv as any).customerSnapshot?.trn}
                           </div>
                         )}
                       </td>

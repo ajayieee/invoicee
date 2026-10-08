@@ -99,6 +99,13 @@ class Repository {
               this.store.categories = [...INITIAL_CATEGORIES];
               this.persist();
             }
+            // Ensure any existing invoices in localStorage have normalized customer_snapshot
+            if (Array.isArray(this.store.invoices)) {
+              this.store.invoices.forEach((inv) => {
+                this.normalizeInvoiceSnapshots(inv);
+              });
+              this.persist();
+            }
           }
         } else {
           this.persist();
@@ -112,6 +119,30 @@ class Repository {
         console.error('Failed to load local storage state:', e);
       }
     }
+  }
+
+  private normalizeInvoiceSnapshots(inv: any): void {
+    if (!inv) return;
+    const snap = inv.customer_snapshot || inv.customerSnapshot || {};
+    inv.customer_snapshot = {
+      ...snap,
+      company_name: snap.company_name || snap.companyName || '',
+      companyName: snap.companyName || snap.company_name || '',
+      contact_person: snap.contact_person || snap.contactPerson || '',
+      contactPerson: snap.contactPerson || snap.contact_person || '',
+      trn: snap.trn || '',
+      billing_address_line_1: snap.billing_address_line_1 || snap.billingAddressLine1 || '',
+      billing_city: snap.billing_city || snap.billingCity || 'Dubai',
+      billing_emirate: snap.billing_emirate || snap.billingEmirate || 'DUBAI',
+      email: snap.email || '',
+      phone: snap.phone || '',
+    };
+    inv.customerSnapshot = inv.customer_snapshot;
+    inv.invoice_number = inv.invoice_number || inv.invoiceNumber || '';
+    inv.invoiceNumber = inv.invoice_number;
+    inv.invoice_date = inv.invoice_date || inv.invoiceDate || '';
+    inv.supply_date = inv.supply_date || inv.supplyDate || '';
+    inv.due_date = inv.due_date || inv.dueDate || '';
   }
 
   private persist() {
@@ -219,7 +250,20 @@ class Repository {
           if (quoData.success && Array.isArray(quoData.items)) {
             const atlasQuotes = quoData.items;
             if (atlasQuotes.length > 0) {
-              this.store.quotes = atlasQuotes;
+              atlasQuotes.forEach((aq: any) => {
+                const quoId = aq.id || aq._id;
+                const idx = this.store.quotes.findIndex(
+                  (q) =>
+                    q.id === quoId ||
+                    (q as any)._id === quoId ||
+                    (aq.quote_number && q.quote_number && q.quote_number.trim() === aq.quote_number.trim())
+                );
+                if (idx !== -1) {
+                  this.store.quotes[idx] = { ...this.store.quotes[idx], ...aq, id: quoId };
+                } else {
+                  this.store.quotes.unshift({ ...aq, id: quoId });
+                }
+              });
               changed = true;
             }
           }
@@ -268,7 +312,12 @@ class Repository {
 
   public upsertQuote(quote: Quote): Quote {
     const quoId = quote.id || (quote as any)._id;
-    const idx = this.store.quotes.findIndex((q) => q.id === quoId || (q as any)._id === quoId);
+    const idx = this.store.quotes.findIndex(
+      (q) =>
+        q.id === quoId ||
+        (q as any)._id === quoId ||
+        (quote.quote_number && q.quote_number && q.quote_number.trim() === quote.quote_number.trim())
+    );
     if (idx !== -1) {
       this.store.quotes[idx] = { ...this.store.quotes[idx], ...quote, id: quoId };
     } else {
@@ -279,6 +328,7 @@ class Repository {
   }
 
   public upsertInvoice(invoice: Invoice): Invoice {
+    this.normalizeInvoiceSnapshots(invoice);
     const invId = invoice.id || (invoice as any)._id;
     const idx = this.store.invoices.findIndex((i) => i.id === invId || (i as any)._id === invId);
     if (idx !== -1) {

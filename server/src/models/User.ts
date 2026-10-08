@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-export type UserRole = 'OWNER' | 'ACCOUNTANT' | 'SALES' | 'VIEWER';
+export type UserRole = 'OWNER' | 'ADMIN' | 'ACCOUNTANT' | 'SALES' | 'VIEWER';
 
 export interface IUser extends Document {
   name: string;
@@ -27,7 +27,7 @@ const UserSchema = new Schema<IUser>(
     title: { type: String, default: 'Staff Member' },
     role: {
       type: String,
-      enum: ['OWNER', 'ACCOUNTANT', 'SALES', 'VIEWER'],
+      enum: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALES', 'VIEWER'],
       default: 'VIEWER',
     },
     organizationId: { type: String, required: true, default: 'org_pixelflames_001' },
